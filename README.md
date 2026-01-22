@@ -18,6 +18,26 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 📚 **[Week 1 Notion Page](https://www.notion.so/Notes-2edf7889a83b80d3bb24d64672a2613f?source=copy_link)**
 
+### Goal
+
+Understand and operate Infrastructure-as-a-Service by setting up and validating an OpenStack environment.
+
+### Scope
+1. **Understanding the OpenStack Architecture**
+   - How OpenStack is structured
+   - Responsibilities of core components:
+     - Virtual Machines
+     - Networks
+     - Storage and related services
+2. **Installation and Basic Configuration** of a Single-node OpenStack cluster using DevStack
+3. **Validation of the installation** by:
+   - Checking system logs
+   - Checking service status and health
+4. **Deployment** of a virtual machine via OpenStack
+5. **Architecture Analysis:**
+   - Analyze the current installation
+   - Create a technically correct architecture diagram of the setup
+
 ## Week 2
 
 _To be updated..._

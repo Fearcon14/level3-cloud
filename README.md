@@ -40,7 +40,7 @@ Understand and operate Infrastructure-as-a-Service by setting up and validating 
 
 ## Week 2
 
-_To be updated..._
+📚 **[Week 2 Notion Page](https://www.notion.so/Week-2-2f4f7889a83b800896e3e26754c9f499?source=copy_link)**
 
 ## Week 3
 

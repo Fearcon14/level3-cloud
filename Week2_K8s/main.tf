@@ -114,7 +114,7 @@ resource "openstack_compute_instance_v2" "k8s_master" {
 # 5. Worker Nodes
 
 resource "openstack_compute_instance_v2" "k8s_worker" {
-	count = 2 # Create 2 worker nodes
+	count = 1 # Create 1 worker nodes
 	name = "k8s-worker-${count.index}"
 	image_name = "Ubuntu-22.04" # Must match Glance Upload
 	flavor_name = "m1.worker"	# Must match Flavor Creation
@@ -151,4 +151,31 @@ output "master_public_ip" {
 
 output "worker_ips" {
 	value = openstack_compute_instance_v2.k8s_worker[*].access_ip_v4
+}
+
+# AUTOMATION: GENERATE ANSIBLE SSH CONFIG
+
+resource "local_file" "ansible_ssh_config" {
+  filename = "./ansible/ssh.cfg"
+  content  = <<EOF
+Host *
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+  ServerAliveInterval 30
+  ServerAliveCountMax 3
+
+# 1. The Gateway (Master Node)
+Host master-node
+  Hostname ${openstack_networking_floatingip_v2.k8s_master_floating_ip.address}
+  User ubuntu
+  IdentityFile ~/.ssh/id_ed25519
+
+# 2. Worker 0
+Host worker-0
+  Hostname ${openstack_compute_instance_v2.k8s_worker[0].access_ip_v4}
+  User ubuntu
+  IdentityFile ~/.ssh/id_ed25519
+  ProxyJump master-node
+
+EOF
 }

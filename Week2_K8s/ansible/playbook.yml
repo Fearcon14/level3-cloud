@@ -1,0 +1,157 @@
+---
+# Play 1: Common Setup
+
+- name: 1. Common Configuration (All Nodes)
+  hosts: all
+  become: yes
+  tasks:
+    - name: Disable Swap (Critical for K8s)
+      shell: |
+        swapoff -a
+        sed -i '/ swap / s/^\(.*\)$/#\1/g' /etc/fstab
+
+    - name: Load Kernel Modules
+      blockinfile:
+        path: /etc/modules-load.d/k8s.conf
+        create: yes
+        block: |
+          overlay
+          br_netfilter
+
+    - name: Load Modules Immediately
+      shell: |
+        modprobe overlay
+        modprobe br_netfilter
+
+    - name: Configure Sysctl Networking
+      blockinfile:
+        path: /etc/sysctl.d/k8s.conf
+        create: yes
+        block: |
+          net.bridge.bridge-nf-call-iptables  = 1
+          net.bridge.bridge-nf-call-ip6tables = 1
+          net.ipv4.ip_forward                 = 1
+
+    - name: Apply Sysctl Params
+      command: sysctl --system
+
+    # --- CONTAINERD SETUP ---
+
+    - name: Install Prerequisites
+      apt:
+        name:
+          - ca-certificates
+          - curl
+          - gnupg
+        state: present
+        update_cache: yes
+
+    - name: Add Docker GPG Key (Used for Containerd packages)
+      shell: |
+        install -m 0755 -d /etc/apt/keyrings
+        curl -fsSL https://download.docker.com/linux/ubuntu/gpg | gpg --dearmor -o /etc/apt/keyrings/docker.gpg --yes
+        chmod a+r /etc/apt/keyrings/docker.gpg
+
+    - name: Add Containerd Repository
+      shell: |
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/etc/apt/keyrings/docker.gpg] https://download.docker.com/linux/ubuntu $(. /etc/os-release && echo "$VERSION_CODENAME") stable" | tee /etc/apt/sources.list.d/docker.list > /dev/null
+
+    - name: Install Containerd
+      apt:
+        name: containerd.io
+        state: present
+        update_cache: yes
+
+    - name: Configure Containerd (SystemdCgroup=true)
+      shell: |
+        containerd config default > /etc/containerd/config.toml
+        sed -i 's/SystemdCgroup = false/SystemdCgroup = true/' /etc/containerd/config.toml
+      notify: Restart Containerd
+
+    # --- KUBERNETES SETUP ---
+
+    - name: Add Kubernetes GPG Key
+      shell: |
+        curl -fsSL https://pkgs.k8s.io/core:/stable:/v1.29/deb/Release.key | gpg --dearmor -o /etc/apt/keyrings/kubernetes-apt-keyring.gpg --yes
+
+    - name: Add Kubernetes Repository
+      shell: |
+        echo 'deb [signed-by=/etc/apt/keyrings/kubernetes-apt-keyring.gpg] https://pkgs.k8s.io/core:/stable:/v1.29/deb/ /' | tee /etc/apt/sources.list.d/kubernetes.list
+
+    - name: Install Kubeadm, Kubelet, Kubectl
+      apt:
+        name:
+          - kubelet
+          - kubeadm
+          - kubectl
+        state: present
+        update_cache: yes
+
+    - name: Hold K8s Packages (Prevent accidental updates)
+      dpkg_selections:
+        name: "{{ item }}"
+        selection: hold
+      loop:
+        - kubelet
+        - kubeadm
+        - kubectl
+
+  handlers:
+    - name: Restart Containerd
+      service:
+        name: containerd
+        state: restarted
+
+# Play 2 : Master Initialization
+
+- name: 2. Master Node Initialization
+  hosts: masters
+  become: yes
+  tasks:
+    - name: Initialize Cluster (This takes a minute)
+      # We use 10.244.0.0/16 because that is the default for Flannel CNI
+      command: kubeadm init --pod-network-cidr=10.244.0.0/16
+      args:
+        creates: /etc/kubernetes/admin.conf # Skips if already done
+
+    - name: Create .kube directory for ubuntu user
+      file:
+        path: /home/ubuntu/.kube
+        state: directory
+        owner: ubuntu
+        group: ubuntu
+        mode: 0755
+
+    - name: Copy admin.conf to user config
+      copy:
+        src: /etc/kubernetes/admin.conf
+        dest: /home/ubuntu/.kube/config
+        remote_src: yes
+        owner: ubuntu
+        group: ubuntu
+        mode: 0600
+
+    - name: Install Flannel Pod Network
+      become: no # Run as ubuntu user
+      command: kubectl apply -f https://github.com/flannel-io/flannel/releases/latest/download/kube-flannel.yml
+
+    - name: Generate Join Command
+      command: kubeadm token create --print-join-command
+      register: join_command_raw
+
+    - name: Store Join Command
+      add_host:
+        name: "K8S_TOKEN_HOLDER"
+        token: "{{ join_command_raw.stdout }}"
+
+# Play 3 Worker initialization
+
+- name: 3. Join Worker Nodes
+  hosts: workers
+  become: yes
+  tasks:
+    - name: Join Cluster
+      # Retrieve the token from the "Dummy Host" we created in Play 2
+      command: "{{ hostvars['K8S_TOKEN_HOLDER']['token'] }}"
+      args:
+        creates: /etc/kubernetes/kubelet.conf # Skips if already joined

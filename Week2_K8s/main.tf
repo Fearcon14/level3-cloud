@@ -128,10 +128,25 @@ resource "openstack_compute_instance_v2" "k8s_worker" {
 	depends_on = [openstack_networking_router_interface_v2.k8s_interface]
 }
 
-# 6. Outputs
+# 6. External Access (Floating IP)
 
-output "master_ip" {
-	value = openstack_compute_instance_v2.k8s_master.access_ip_v4
+# Request a Floating IP from the "public" pool
+
+resource "openstack_networking_floatingip_v2" "k8s_master_floating_ip" {
+	pool = "public"
+}
+
+# Attach to the Master Node
+
+resource "openstack_compute_floatingip_associate_v2" "k8s_master_floating_ip_associate" {
+	floating_ip = openstack_networking_floatingip_v2.k8s_master_floating_ip.address
+	instance_id = openstack_compute_instance_v2.k8s_master.id
+}
+
+# 7. Outputs
+
+output "master_public_ip" {
+	value = openstack_networking_floatingip_v2.k8s_master_floating_ip.address
 }
 
 output "worker_ips" {

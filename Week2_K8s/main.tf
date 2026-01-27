@@ -14,7 +14,47 @@ terraform {
 
 provider "openstack" {}
 
-# 2. Security Groups
+# 2. Network Setup
+
+# Find public router ID to connect to outside world
+
+data "openstack_networking_network_v2" "public_net" {
+	name = "public"
+}
+
+# Create the Router
+
+resource "openstack_networking_router_v2" "k8s_router" {
+	name = "k8s-router"
+	admin_state_up = true
+	external_network_id = data.openstack_networking_network_v2.public_net.id
+}
+
+# Create the Private Network
+
+resource "openstack_networking_network_v2" "k8s_network" {
+	name = "k8s_network"
+	admin_state_up = true
+}
+
+# Create the Subnet
+
+resource "openstack_networking_subnet_v2" "k8s_subnet" {
+	name = "k8s-subnet"
+	network_id = openstack_networking_network_v2.k8s_network.id
+	cidr = "192.168.14.0/24"
+	ip_version = 4
+	dns_nameservers = ["8.8.8.8", "1.1.1.1"]
+}
+
+# Plug Subnet into Router
+
+resource "openstack_networking_router_interface_v2" "k8s_interface" {
+	router_id = openstack_networking_router_v2.k8s_router.id
+	subnet_id = openstack_networking_subnet_v2.k8s_subnet.id
+}
+
+# 3. Security Groups
 
 resource "openstack_networking_secgroup_v2" "k8s_sg" {
 	name = "k8s-cluster-sg"
@@ -55,7 +95,7 @@ resource "openstack_networking_secgroup_rule_v2" "sg_rule_internal" {
 	security_group_id = openstack_networking_secgroup_v2.k8s_sg.id
 }
 
-# 3. Master Node
+# 4. Master Node
 
 resource "openstack_compute_instance_v2" "k8s_master" {
 	name = "k8s-master"
@@ -65,11 +105,13 @@ resource "openstack_compute_instance_v2" "k8s_master" {
 	security_groups = ["default", openstack_networking_secgroup_v2.k8s_sg.name]
 
 	network {
-		name = "Network-Test"	# Must match Network Creation
+		uuid = openstack_networking_network_v2.k8s_network.id
 	}
+
+	depends_on = [openstack_networking_router_interface_v2.k8s_interface]
 }
 
-# 4. Worker Nodes
+# 5. Worker Nodes
 
 resource "openstack_compute_instance_v2" "k8s_worker" {
 	count = 2 # Create 2 worker nodes
@@ -80,11 +122,13 @@ resource "openstack_compute_instance_v2" "k8s_worker" {
 	security_groups = ["default", openstack_networking_secgroup_v2.k8s_sg.name]
 
 	network {
-		name = "Network-Test"	# Must match master node network
+		uuid = openstack_networking_network_v2.k8s_network.id
 	}
+
+	depends_on = [openstack_networking_router_interface_v2.k8s_interface]
 }
 
-# 5. Outputs
+# 6. Outputs
 
 output "master_ip" {
 	value = openstack_compute_instance_v2.k8s_master.access_ip_v4

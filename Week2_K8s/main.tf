@@ -14,6 +14,11 @@ terraform {
 
 provider "openstack" {}
 
+resource "openstack_compute_keypair_v2" "k8s_key" {
+  name       = "stack-key"
+  public_key = file("~/.ssh/id_ed25519.pub") # Path to your local public key
+}
+
 # 2. Network Setup
 
 # Find public router ID to connect to outside world
@@ -101,7 +106,7 @@ resource "openstack_compute_instance_v2" "k8s_master" {
 	name = "k8s-master"
 	image_name = "Ubuntu-22.04" # Must match Glance Upload
 	flavor_name = "m1.master"	# Must match Flavor Creation
-	key_pair = "stack-key"
+	key_pair = openstack_compute_keypair_v2.k8s_key.name
 	security_groups = ["default", openstack_networking_secgroup_v2.k8s_sg.name]
 
 	network {
@@ -118,7 +123,7 @@ resource "openstack_compute_instance_v2" "k8s_worker" {
 	name = "k8s-worker-${count.index}"
 	image_name = "Ubuntu-22.04" # Must match Glance Upload
 	flavor_name = "m1.worker"	# Must match Flavor Creation
-	key_pair = "stack-key"
+	key_pair = openstack_compute_keypair_v2.k8s_key.name
 	security_groups = ["default", openstack_networking_secgroup_v2.k8s_sg.name]
 
 	network {

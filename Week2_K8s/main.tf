@@ -179,3 +179,37 @@ Host worker-0
 
 EOF
 }
+
+# --- AUTOMATED HOST NETWORK FIX ---
+
+# 1. Define your host internet interface (Change if not enp3s0)
+variable "host_interface" {
+  default = "enp3s0"
+}
+
+# 2. Configure NAT on the Host Machine
+resource "null_resource" "host_nat_config" {
+  triggers = {
+    interface = var.host_interface
+  }
+
+  # ENABLE NAT (Runs on Apply)
+  provisioner "local-exec" {
+    command = <<EOT
+      echo "--- Enabling Host NAT on ${var.host_interface} ---"
+      sudo sysctl -w net.ipv4.ip_forward=1
+      # Check if rule exists, if not, add it
+      sudo iptables -t nat -C POSTROUTING -o ${var.host_interface} -j MASQUERADE 2>/dev/null || \
+      sudo iptables -t nat -A POSTROUTING -o ${var.host_interface} -j MASQUERADE
+    EOT
+  }
+
+  # CLEANUP NAT (Runs on Destroy)
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      echo "--- Cleaning up Host NAT rules ---"
+      sudo iptables -t nat -D POSTROUTING -o enp3s0 -j MASQUERADE || true
+    EOT
+  }
+}

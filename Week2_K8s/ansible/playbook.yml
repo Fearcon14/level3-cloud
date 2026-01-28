@@ -5,6 +5,17 @@
   hosts: all
   become: yes
   tasks:
+    - name: Fix MTU size (Prevents connection drops)
+      command: ip link set dev ens3 mtu 1300
+      changed_when: false
+      ignore_errors: yes
+
+    - name: Force APT to use IPv4 (Prevents hanging updates)
+      copy:
+        content: 'Acquire::ForceIPv4 "true";'
+        dest: /etc/apt/apt.conf.d/99force-ipv4
+        mode: '0644'
+        
     - name: Disable Swap (Critical for K8s)
       shell: |
         swapoff -a

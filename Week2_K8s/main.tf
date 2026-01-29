@@ -15,6 +15,10 @@ terraform {
 		source = "hashicorp/local"
 		version = "~> 2.0"
 	  }
+	  null = {
+		source = "hashicorp/null"
+		version = "~> 3.0"
+	  }
 	}
 }
 
@@ -221,6 +225,75 @@ Host worker-0
   ProxyJump master-node
 
 EOF
+
+  depends_on = [local_file.private_key]
+}
+
+# AUTOMATION: UPDATE USER SSH CONFIG (~/.ssh/config)
+# This allows SSH without specifying -i flag
+
+resource "null_resource" "update_ssh_config" {
+  triggers = {
+    master_ip = openstack_networking_floatingip_v2.k8s_master_floating_ip.address
+    worker_ip = openstack_compute_instance_v2.k8s_worker[0].access_ip_v4
+    key_path  = local_file.private_key.filename
+  }
+
+  # Add entries to ~/.ssh/config
+  provisioner "local-exec" {
+    command = <<EOT
+      SSH_CONFIG="$HOME/.ssh/config"
+      KEY_PATH="${abspath(local_file.private_key.filename)}"
+      MASTER_IP="${openstack_networking_floatingip_v2.k8s_master_floating_ip.address}"
+      WORKER_IP="${openstack_compute_instance_v2.k8s_worker[0].access_ip_v4}"
+
+      # Create ~/.ssh directory if it doesn't exist
+      mkdir -p "$HOME/.ssh"
+      chmod 700 "$HOME/.ssh"
+
+      # Create config file if it doesn't exist
+      touch "$SSH_CONFIG"
+      chmod 600 "$SSH_CONFIG"
+
+      # Remove old k8s entries if they exist (between BEGIN and END markers)
+      sed -i.bak '/# BEGIN K8S CLUSTER/,/# END K8S CLUSTER/d' "$SSH_CONFIG" 2>/dev/null || true
+
+      # Add new entries
+      cat >> "$SSH_CONFIG" <<EOF
+
+# BEGIN K8S CLUSTER - Managed by Terraform
+# Master Node
+Host master-node
+  Hostname $MASTER_IP
+  User ubuntu
+  IdentityFile $KEY_PATH
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+
+# Worker 0
+Host worker-0
+  Hostname $WORKER_IP
+  User ubuntu
+  IdentityFile $KEY_PATH
+  ProxyJump master-node
+  StrictHostKeyChecking no
+  UserKnownHostsFile /dev/null
+# END K8S CLUSTER
+
+EOF
+    EOT
+  }
+
+  # Clean up entries on destroy
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOT
+      SSH_CONFIG="$HOME/.ssh/config"
+      if [ -f "$SSH_CONFIG" ]; then
+        sed -i.bak '/# BEGIN K8S CLUSTER/,/# END K8S CLUSTER/d' "$SSH_CONFIG" 2>/dev/null || true
+      fi
+    EOT
+  }
 }
 
 # --- AUTOMATED HOST NETWORK FIX ---

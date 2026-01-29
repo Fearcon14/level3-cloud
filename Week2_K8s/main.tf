@@ -215,13 +215,13 @@ Host *
 Host master-node
   Hostname ${openstack_networking_floatingip_v2.k8s_master_floating_ip.address}
   User ubuntu
-  IdentityFile ${path.module}/k8s_key
+  IdentityFile ../k8s_key
 
 # 2. Worker 0
 Host worker-0
   Hostname ${openstack_compute_instance_v2.k8s_worker[0].access_ip_v4}
   User ubuntu
-  IdentityFile ${path.module}/k8s_key
+  IdentityFile ../k8s_key
   ProxyJump master-node
 
 EOF

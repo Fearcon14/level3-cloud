@@ -7,6 +7,14 @@ terraform {
 		source = "terraform-provider-openstack/openstack"
 		version = "~> 1.53.0"
 	  }
+	  tls = {
+		source = "hashicorp/tls"
+		version = "~> 4.0"
+	  }
+	  local = {
+		source = "hashicorp/local"
+		version = "~> 2.0"
+	  }
 	}
 }
 
@@ -14,9 +22,29 @@ terraform {
 
 provider "openstack" {}
 
+# Generate SSH key pair
+resource "tls_private_key" "k8s_ssh_key" {
+  algorithm = "ED25519"
+}
+
+# Save the private key to a file
+resource "local_file" "private_key" {
+  content         = tls_private_key.k8s_ssh_key.private_key_openssh
+  filename        = "${path.module}/k8s_key"
+  file_permission = "0600"
+}
+
+# Save the public key to a file (optional, for reference)
+resource "local_file" "public_key" {
+  content         = tls_private_key.k8s_ssh_key.public_key_openssh
+  filename        = "${path.module}/k8s_key.pub"
+  file_permission = "0644"
+}
+
+# Create OpenStack keypair using the generated public key
 resource "openstack_compute_keypair_v2" "k8s_key" {
   name       = "stack-key"
-  public_key = file("~/.ssh/id_ed25519.pub") # Path to your local public key
+  public_key = tls_private_key.k8s_ssh_key.public_key_openssh
 }
 
 # 2. Network Setup
@@ -158,6 +186,16 @@ output "worker_ips" {
 	value = openstack_compute_instance_v2.k8s_worker[*].access_ip_v4
 }
 
+output "private_key_path" {
+	value = local_file.private_key.filename
+	description = "Path to the generated private key file"
+}
+
+output "public_key_path" {
+	value = local_file.public_key.filename
+	description = "Path to the generated public key file"
+}
+
 # AUTOMATION: GENERATE ANSIBLE SSH CONFIG
 
 resource "local_file" "ansible_ssh_config" {
@@ -173,13 +211,13 @@ Host *
 Host master-node
   Hostname ${openstack_networking_floatingip_v2.k8s_master_floating_ip.address}
   User ubuntu
-  IdentityFile ~/.ssh/id_ed25519
+  IdentityFile ${path.module}/k8s_key
 
 # 2. Worker 0
 Host worker-0
   Hostname ${openstack_compute_instance_v2.k8s_worker[0].access_ip_v4}
   User ubuntu
-  IdentityFile ~/.ssh/id_ed25519
+  IdentityFile ${path.module}/k8s_key
   ProxyJump master-node
 
 EOF

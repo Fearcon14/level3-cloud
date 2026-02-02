@@ -19,6 +19,7 @@ terraform.rc
 k8s_key*
 id_rsa
 id_rsa.pub
+kubeconfig-*
 
 terraform-provider-stackit*
 terraform-provider-stackit/**/*

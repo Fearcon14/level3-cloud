@@ -1,13 +1,7 @@
-variable "service_account_key" {
+variable "service_account_key_path" {
 	description = "StackIT service account key (Key Flow auth)"
 	type        = string
 	sensitive   = true
-	default     = ""
+	default     = "service_account_key.json"
 }
 
-variable "private_key" {
-	description = "StackIT private key (Key Flow auth)"
-	type        = string
-	sensitive   = true
-	default     = ""
-}

@@ -17,3 +17,7 @@ override.tf.json
 terraform.rc
 
 k8s_key*
+
+terraform-provider-stackit*
+terraform-provider-stackit/**/*
+

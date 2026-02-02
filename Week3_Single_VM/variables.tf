@@ -14,7 +14,7 @@ variable "project_id" {
 variable "machine_type" {
 	description = "STACKIT flavor"
 	type		= string
-	default		= "g1a.4d"
+	default		= "g2i.2"
 }
 
 variable "image_id" {

@@ -20,7 +20,7 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ### Goal
 
-Understand and operate Infrastructure-as-a-Service by setting up and validating an OpenStack environment. - [x]
+- [x] Understand and operate Infrastructure-as-a-Service by setting up and validating an OpenStack environment.
 
 ### Scope
 1. **Understanding the OpenStack Architecture** - [x]

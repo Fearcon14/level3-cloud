@@ -14,7 +14,7 @@ variable "project_id" {
 variable "machine_type" {
 	description = "STACKIT machine type for SKE node pool (e.g. g1a.2d)"
 	type        = string
-	default     = "g1a.2d"
+	default     = "g2i.2"
 }
 
 variable "cluster_name" {

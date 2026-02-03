@@ -16,10 +16,12 @@ resource "stackit_ske_cluster" "cluster" {
 	]
 }
 
-# Kubeconfig for kubectl access (created after cluster is ready)
+# Kubeconfig for kubectl access (created after cluster is ready).
+# Set refresh = true so Terraform gets a new kubeconfig when it expires (default 1h).
 resource "stackit_ske_kubeconfig" "cluster" {
 	project_id   = var.project_id
 	cluster_name = stackit_ske_cluster.cluster.name
+	refresh      = true
 }
 
 # Write kubeconfig to a file so you can use kubectl

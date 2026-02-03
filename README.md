@@ -83,7 +83,7 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ### Scope
 
-- [ ] **SKE Cluster Creation:** Using the STACKIT Terraform Provider to provision an SKE (STACKIT Kubernetes Engine) Cluster
+- [x] **SKE Cluster Creation:** Using the STACKIT Terraform Provider to provision an SKE (STACKIT Kubernetes Engine) Cluster
 - [ ] **PaaS Product Implementation (e.g. Managed Database):** Design and technical implementation of a simple PaaS service.
   - [ ] **Operator deployment:** Provisioning of an Operator
   - [ ] **Product Component Management:** Utilization of Custom Kubernetes Resources (CRs) for the provisioning and management of product components

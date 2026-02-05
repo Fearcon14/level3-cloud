@@ -1,0 +1,44 @@
+name: CI - Validate Kubernetes Manifests
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  # Job 1: Check for basic YAML syntax errors
+  yamllint:
+    name: YAML Syntax Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run yamllint
+        uses: ibiqlik/action-yamllint@v3
+        with:
+          file_or_dir: .
+          config_data: |
+            extends: default
+            rules:
+              line-length: disable
+              document-start: disable
+
+  # Job 2: Check against Kubernetes Schema (The "Is this valid K8s?" check)
+  kubeconform:
+    name: Kubernetes Schema Validation
+    runs-on: ubuntu-latest
+    needs: yamllint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Run kubeconform
+        uses: docker://ghcr.io/yannh/kubeconform:latest-alpine
+        with:
+          entrypoint: /kubeconform
+          # We check the specific folder where your manifests are
+          # -ignore-missing-schemas is needed for CRDs (like RedisFailover)
+          # because standard K8s doesn't know about them by default.
+          args: "-summary -ignore-missing-schemas Week3_SKE/kubernetes/spotahome_redis_operator/instances/"

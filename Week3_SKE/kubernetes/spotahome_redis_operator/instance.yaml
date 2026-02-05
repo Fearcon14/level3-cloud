@@ -8,3 +8,22 @@ spec:
     replicas: 3
   redis:
     replicas: 3
+    resources:
+      requests:
+        cpu: 100m
+        memory: 128Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+    storage:
+        keepAfterDeletion: true
+        persistentVolumeClaim:
+          metadata:
+            name: my-redis-data
+          spec:
+            storageClassName: "premium-perf1-stackit"
+            accessModes:
+              - ReadWriteOnce
+            resources:
+              requests:
+                storage: 1Gi

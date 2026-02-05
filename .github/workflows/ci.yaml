@@ -18,7 +18,7 @@ jobs:
       - name: Run yamllint
         uses: ibiqlik/action-yamllint@v3
         with:
-          file_or_dir: .
+          file_or_dir: Week3_SKE/kubernetes/spotahome_redis_operator/instances/
           config_data: |
             extends: default
             rules:

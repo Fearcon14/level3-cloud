@@ -76,7 +76,6 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 📚 **[Week 3 Notion Page](https://www.notion.so/Week-3-2fbf7889a83b800196acd55504b150d9?source=copy_link)**
 
-
 ### Goal
 
 - [x] Design and implement a Platform-as-a-Service offering on top of Kubernetes.
@@ -87,7 +86,7 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 - [x] **PaaS Product Implementation (e.g. Managed Database):** Design and technical implementation of a simple PaaS service.
   - [x] **Operator deployment:** Provisioning of an Operator
   - [x] **Product Component Management:** Utilization of Custom Kubernetes Resources (CRs) for the provisioning and management of product components
-  - [ ] **Connectivity:** Documentation and demonstration of connecting to and using the PaaS product
+  - [x] **Connectivity:** Documentation and demonstration of connecting to and using the PaaS product
 - [x] **Understanding Kubernetes Concepts:** Deepening knowledge of Custom Resource Definitions (CRDs) and the functioning of Operators (Reconciler Pattern)
 
 ### Bonus
@@ -96,7 +95,30 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ## Week 4
 
-_To be updated..._
+📚 **[Week 4 Notion Page](https://www.notion.so/Week-4-2fef7889a83b80b9b7bfd42b9cfbdfc8?source=copy_link)**
+
+### Goal
+
+- [ ] Expose the PaaS product through a clean, production-ready RESTful API to enable automated provisioning and seamless integration.
+
+### Scope
+
+- [ ] **API Development for Product Instances**: Development of a RESTful API that provides the following functions: creation, deletion, and listing of PaaS product instances, as well as retrieval of the associated connection and access data.
+    - [ ] API Specification: The functionality of the API must be documented in the form of OpenAPI specifications
+- [ ] **Unit Tests:** Implementation of simple Unit Tests for each endpoint of the developed API
+- [ ] **Docker Container Image** for the API creation, upload to the STACKIT Container Registry, and provisioning of the API via SKE
+- [ ] **Understanding the Creation Process (Create Flow):**
+    - [ ] * **Flowchart for the creation of a product instance:** Visualization of the individual steps
+    - [ ] * **Basic understanding of how a RESTful API works**
+
+### Bonus
+
+- [ ] **Automated API Deployment**: Integration of the deployment of the RESTful API into the existing GitOps infrastructure
+- [ ] **Auto-Scaling and Performance Tests**:
+    - [ ] * **Horizontal Pod Autoscaler (HPA):** Configuration of the Kubernetes HPA for automatic scaling of the Control Plane RESTful API
+    - [ ] * **Performance Tests**: Implementation of performance tests for the RESTful API to verify the functionality of the HPA
+- [ ] **Update Functionality**: Implementation and testing of an API endpoint that allows the updating of access data and details of the product instance
+
 
 ## Week 5
 

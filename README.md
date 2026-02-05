@@ -79,7 +79,7 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ### Goal
 
-- [ ] Design and implement a Platform-as-a-Service offering on top of Kubernetes.
+- [x] Design and implement a Platform-as-a-Service offering on top of Kubernetes.
 
 ### Scope
 
@@ -92,7 +92,7 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ### Bonus
 
-- [ ] **Automating the Deployment:** Introduction of a GitOps approach and CI/CD integration for automated provisioning of the SKE and the PaaS service
+- [x] **Automating the Deployment:** Introduction of a GitOps approach and CI/CD integration for automated provisioning of the SKE and the PaaS service
 
 ## Week 4
 

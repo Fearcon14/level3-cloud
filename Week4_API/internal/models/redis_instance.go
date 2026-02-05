@@ -9,6 +9,7 @@ type RedisInstance struct {
 	Capacity  string `json:"capacity"`
 }
 
+// CreateRedisRequest validates what the user sends us
 type CreateRedisRequest struct {
 	Name     string `json:"name" validate:"required"`
 	Capacity string `json:"capacity" validate:"required"`

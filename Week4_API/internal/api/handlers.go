@@ -1,6 +1,7 @@
 package api
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -35,15 +36,18 @@ func (a *Application) ListInstances(c *echo.Context) error {
 	return c.JSON(http.StatusOK, instances)
 }
 
-// GetInstance returns a single Redis instance by name (id). Returns an error if not found.
+// GetInstance returns a single Redis instance by name (id). Returns 404 if not found.
 func (a *Application) GetInstance(c *echo.Context) error {
 	id := c.Param("id")
 	ctx := c.Request().Context()
 
 	instance, err := a.Store.GetInstance(ctx, id)
 	if err != nil {
-		a.Logger.Error("intance not found", "error", err)
-		return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Errorf("instance not found").Error()})
+		if errors.Is(err, k8s.ErrNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "instance not found"})
+		}
+		a.Logger.Error("get instance failed", "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to get instance"})
 	}
 	return c.JSON(http.StatusOK, instance)
 }
@@ -72,7 +76,7 @@ func (a *Application) CreateInstance(c *echo.Context) error {
 	return c.JSON(http.StatusCreated, instance)
 }
 
-// UpdateInstanceCapacity updates the capacity of an existing Redis instance.
+// UpdateInstanceCapacity updates the capacity (and optionally StorageClass) of an existing Redis instance.
 func (a *Application) UpdateInstanceCapacity(c *echo.Context) error {
 	id := c.Param("id")
 	var req models.UpdateInstanceCapacityRequest
@@ -80,23 +84,32 @@ func (a *Application) UpdateInstanceCapacity(c *echo.Context) error {
 		a.Logger.Error("failed to bind request", "error", err)
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
+	if req.Capacity == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "capacity is required"})
+	}
 
 	ctx := c.Request().Context()
-	updated, err := a.Store.UpdateInstanceCapacity(ctx, id, req.Capacity)
+	updated, err := a.Store.UpdateInstanceCapacity(ctx, id, req)
 	if err != nil {
+		if errors.Is(err, k8s.ErrNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "instance not found"})
+		}
 		a.Logger.Error("failed to update instance", "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Errorf("failed to update instance").Error()})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to update instance"})
 	}
 	return c.JSON(http.StatusOK, updated)
 }
 
-// DeleteInstance deletes an existing Redis instance.
+// DeleteInstance deletes an existing Redis instance. Returns 404 if the instance does not exist.
 func (a *Application) DeleteInstance(c *echo.Context) error {
 	id := c.Param("id")
 	ctx := c.Request().Context()
 	if err := a.Store.DeleteInstance(ctx, id); err != nil {
+		if errors.Is(err, k8s.ErrNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "instance not found"})
+		}
 		a.Logger.Error("failed to delete instance", "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Errorf("failed to delete instance").Error()})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to delete instance"})
 	}
 	return c.NoContent(http.StatusNoContent)
 }

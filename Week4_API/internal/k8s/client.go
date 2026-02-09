@@ -2,10 +2,12 @@ package k8s
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/models"
 
+	k8serrors "k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
@@ -21,12 +23,16 @@ var gvrRedisFailover = schema.GroupVersionResource{
 	Resource: "redisfailovers",
 }
 
+// ErrNotFound is returned when a Redis instance (RedisFailover CR) does not exist.
+// Handlers should respond with HTTP 404 when errors.Is(err, ErrNotFound).
+var ErrNotFound = errors.New("redis instance not found")
+
 // InstanceStore defines instance operations; implemented by RedisFailoverStore (dynamic client).
 type InstanceStore interface {
 	ListInstances(ctx context.Context) ([]models.RedisInstance, error)
 	GetInstance(ctx context.Context, id string) (*models.RedisInstance, error)
 	CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error)
-	UpdateInstanceCapacity(ctx context.Context, id string, capacity string) (*models.RedisInstance, error)
+	UpdateInstanceCapacity(ctx context.Context, id string, req models.UpdateInstanceCapacityRequest) (*models.RedisInstance, error)
 	DeleteInstance(ctx context.Context, id string) error
 }
 
@@ -65,17 +71,20 @@ func NewDynamicClient(kubeConfigPath string) (dynamic.Interface, error) {
 // RedisFailoverStore implements InstanceStore using RedisFailover CRs (Spotahome Redis operator).
 // All instance operations go through the dynamic client; the operator handles the actual Redis/Sentinel workloads.
 type RedisFailoverStore struct {
-	client       dynamic.Interface
-	namespace    string
-	templatePath string
+	client             dynamic.Interface
+	namespace          string
+	templatePath       string
+	defaultStorageClass string
 }
 
 // NewRedisFailoverStore returns a store that lists/creates/updates/deletes RedisFailover CRs.
-func NewRedisFailoverStore(client dynamic.Interface, namespace, templatePath string) *RedisFailoverStore {
+// defaultStorageClass is used when CreateRedisRequest.StorageClass is empty (e.g. from config).
+func NewRedisFailoverStore(client dynamic.Interface, namespace, templatePath, defaultStorageClass string) *RedisFailoverStore {
 	return &RedisFailoverStore{
-		client:       client,
-		namespace:    namespace,
-		templatePath: templatePath,
+		client:              client,
+		namespace:           namespace,
+		templatePath:        templatePath,
+		defaultStorageClass: defaultStorageClass,
 	}
 }
 
@@ -94,21 +103,30 @@ func (s *RedisFailoverStore) ListInstances(ctx context.Context) ([]models.RedisI
 	return instances, nil
 }
 
-// GetInstance returns a single RedisFailover by name (id).
+// GetInstance returns a single RedisFailover by name (id). Returns ErrNotFound if the CR does not exist.
 func (s *RedisFailoverStore) GetInstance(ctx context.Context, id string) (*models.RedisInstance, error) {
 	obj, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
+		}
 		return nil, fmt.Errorf("get redisfailover %q: %w", id, err)
 	}
 	return redisfailoverToModel(obj), nil
 }
 
-// CreateInstance creates a new RedisFailover CR from the request by rendering the template and applying it.
+// CreateInstance implements template → create: validate request, render RedisFailover from template, decode YAML, then create CR via dynamic client.
 func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error) {
 	if req.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	data := BuildRedisFailoverTemplateData(req, s.namespace)
+	if req.Capacity == "" {
+		return nil, fmt.Errorf("capacity is required")
+	}
+	if err := ValidateCreateRedisRequest(req); err != nil {
+		return nil, fmt.Errorf("validation: %w", err)
+	}
+	data := BuildRedisFailoverTemplateData(req, s.namespace, s.defaultStorageClass)
 	yamlBytes, err := RenderRedisFailoverTemplate(s.templatePath, data)
 	if err != nil {
 		return nil, fmt.Errorf("render template: %w", err)
@@ -118,6 +136,9 @@ func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.Crea
 		return nil, fmt.Errorf("decode yaml: %w", err)
 	}
 	obj.SetNamespace(s.namespace)
+	gv := schema.GroupVersion{Group: gvrRedisFailover.Group, Version: gvrRedisFailover.Version}
+	obj.SetAPIVersion(gv.String())
+	obj.SetKind("RedisFailover")
 	created, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Create(ctx, obj, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("create redisfailover: %w", err)
@@ -125,14 +146,27 @@ func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.Crea
 	return redisfailoverToModel(created), nil
 }
 
-// UpdateInstanceCapacity updates the storage size on the RedisFailover CR.
-func (s *RedisFailoverStore) UpdateInstanceCapacity(ctx context.Context, id string, capacity string) (*models.RedisInstance, error) {
+// UpdateInstanceCapacity updates storage size (and optionally StorageClass) on the RedisFailover CR.
+// Returns ErrNotFound if the CR does not exist.
+func (s *RedisFailoverStore) UpdateInstanceCapacity(ctx context.Context, id string, req models.UpdateInstanceCapacityRequest) (*models.RedisInstance, error) {
+	if err := ValidateUpdateInstanceCapacityRequest(req); err != nil {
+		return nil, fmt.Errorf("validation: %w", err)
+	}
 	obj, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
+		}
 		return nil, fmt.Errorf("get redisfailover %q: %w", id, err)
 	}
-	if err := unstructured.SetNestedField(obj.Object, capacity, "spec", "redis", "storage", "persistentVolumeClaim", "spec", "resources", "requests", "storage"); err != nil {
+	pvcPath := []string{"spec", "redis", "storage", "persistentVolumeClaim", "spec"}
+	if err := unstructured.SetNestedField(obj.Object, req.Capacity, append(pvcPath, "resources", "requests", "storage")...); err != nil {
 		return nil, fmt.Errorf("set storage: %w", err)
+	}
+	if req.StorageClass != "" {
+		if err := unstructured.SetNestedField(obj.Object, req.StorageClass, append(pvcPath, "storageClassName")...); err != nil {
+			return nil, fmt.Errorf("set storageClassName: %w", err)
+		}
 	}
 	updated, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Update(ctx, obj, metav1.UpdateOptions{})
 	if err != nil {
@@ -142,8 +176,12 @@ func (s *RedisFailoverStore) UpdateInstanceCapacity(ctx context.Context, id stri
 }
 
 // DeleteInstance deletes the RedisFailover CR; the operator cleans up the underlying resources.
+// Returns ErrNotFound if the CR does not exist.
 func (s *RedisFailoverStore) DeleteInstance(ctx context.Context, id string) error {
 	if err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Delete(ctx, id, metav1.DeleteOptions{}); err != nil {
+		if k8serrors.IsNotFound(err) {
+			return fmt.Errorf("%w: %s", ErrNotFound, id)
+		}
 		return fmt.Errorf("delete redisfailover %q: %w", id, err)
 	}
 	return nil

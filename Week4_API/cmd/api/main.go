@@ -14,7 +14,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("failed to create dynamic client: %v", err)
 	}
-	store := k8s.NewRedisFailoverStore(dynamicClient, cfg.PaaSNamespace, cfg.RedisFailoverTemplatePath)
+	store := k8s.NewRedisFailoverStore(dynamicClient, cfg.PaaSNamespace, cfg.RedisFailoverTemplatePath, cfg.DefaultStorageClass)
 	e := api.NewServer(cfg, store)
 
 	if err := e.Start(cfg.APIListenAddr); err != nil {

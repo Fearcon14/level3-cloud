@@ -17,8 +17,8 @@ type Application struct {
 }
 
 func NewApplication(store k8s.InstanceStore, logger *slog.Logger) *Application {
-	return &Application {
-		Store: store,
+	return &Application{
+		Store:  store,
 		Logger: logger,
 	}
 }
@@ -90,4 +90,13 @@ func (a *Application) UpdateInstanceCapacity(c echo.Context) error {
 	return c.JSON(http.StatusOK, updated)
 }
 
-
+// DeleteInstance deletes an existing Redis instance.
+func (a *Application) DeleteInstance(c echo.Context) error {
+	id := c.Param("id")
+	ctx := c.Request().Context()
+	if err := a.Store.DeleteInstance(ctx, id); err != nil {
+		a.Logger.Error("failed to delete instance", "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Errorf("failed to delete instance").Error()})
+	}
+	return c.NoContent(http.StatusNoContent)
+}

@@ -14,3 +14,8 @@ type CreateRedisRequest struct {
 	Name     string `json:"name" validate:"required"`
 	Capacity string `json:"capacity" validate:"required"`
 }
+
+// UpdateInstanceCapacityRequest is the body for PUT /instances/:id (update capacity).
+type UpdateInstanceCapacityRequest struct {
+	Capacity string `json:"capacity"`
+}

@@ -71,3 +71,23 @@ func (a *Application) CreateInstance(c echo.Context) error {
 	}
 	return c.JSON(http.StatusCreated, instance)
 }
+
+// UpdateInstanceCapacity updates the capacity of an existing Redis instance.
+func (a *Application) UpdateInstanceCapacity(c echo.Context) error {
+	id := c.Param("id")
+	var req models.UpdateInstanceCapacityRequest
+	if err := c.Bind(&req); err != nil {
+		a.Logger.Error("failed to bind request", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	ctx := c.Request().Context()
+	updated, err := a.Store.UpdateInstanceCapacity(ctx, id, req.Capacity)
+	if err != nil {
+		a.Logger.Error("failed to update instance", "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Errorf("failed to update instance").Error()})
+	}
+	return c.JSON(http.StatusOK, updated)
+}
+
+

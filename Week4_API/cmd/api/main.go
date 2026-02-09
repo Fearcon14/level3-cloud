@@ -10,12 +10,11 @@ import (
 func main() {
 	cfg := api.GetConfig()
 
-	clientset, err := k8s.NewClientset(cfg.KubeConfigPath)
+	dynamicClient, err := k8s.NewDynamicClient(cfg.KubeConfigPath)
 	if err != nil {
-		log.Fatalf("failed to create clientset: %v", err)
+		log.Fatalf("failed to create dynamic client: %v", err)
 	}
-
-	store := k8s.NewK8sInstanceStore(clientset, cfg.PaaSNamespace)
+	store := k8s.NewRedisFailoverStore(dynamicClient, cfg.PaaSNamespace, cfg.RedisFailoverTemplatePath)
 	e := api.NewServer(cfg, store)
 
 	if err := e.Start(cfg.APIListenAddr); err != nil {

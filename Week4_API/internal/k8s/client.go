@@ -6,51 +6,28 @@ import (
 
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/models"
 
-	"k8s.io/client-go/kubernetes"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
-	appsv1 "k8s.io/api/apps/v1"
-	corev1 "k8s.io/api/core/v1"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
-	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-const (
-	labelAppKey   = "app"
-	labelAppValue = "redis-paas"
+// RedisFailover CRD (Spotahome Redis operator): GroupVersionResource for the dynamic client.
+var gvrRedisFailover = schema.GroupVersionResource{
+	Group:    "databases.spotahome.com",
+	Version:  "v1",
+	Resource: "redisfailovers",
+}
 
-	annotationInstanceID = "paas.example.com/instance-id"
-	annotationCapacity   = "paas.example.com/capacity"
-
-	redisContainerName = "redis"
-	redisImage         = "redis:7"
-	redisPort          = 6379
-)
-
+// InstanceStore defines instance operations; implemented by RedisFailoverStore (dynamic client).
 type InstanceStore interface {
 	ListInstances(ctx context.Context) ([]models.RedisInstance, error)
 	GetInstance(ctx context.Context, id string) (*models.RedisInstance, error)
 	CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error)
 	UpdateInstanceCapacity(ctx context.Context, id string, capacity string) (*models.RedisInstance, error)
 	DeleteInstance(ctx context.Context, id string) error
-}
-
-type K8sInstanceStore struct {
-	clientset *kubernetes.Clientset
-	namespace string
-}
-
-// NewClientset builds a Kubernetes clientset using, in order:
-// 1. kubeConfigPath if non-empty (e.g. from KUBECONFIG),
-// 2. in-cluster config if the process is running inside a cluster,
-// 3. default kubeconfig loading rules (e.g. ~/.kube/config).
-func NewClientset(kubeConfigPath string) (*kubernetes.Clientset, error) {
-	config, err := buildRestConfig(kubeConfigPath)
-	if err != nil {
-		return nil, err
-	}
-	return kubernetes.NewForConfig(config)
 }
 
 // buildRestConfig returns *rest.Config for the given kubeconfig path or fallbacks.
@@ -76,201 +53,126 @@ func buildRestConfig(kubeConfigPath string) (*rest.Config, error) {
 	return config, nil
 }
 
-func NewK8sInstanceStore(clientset *kubernetes.Clientset, namespace string) *K8sInstanceStore {
-	return &K8sInstanceStore{
-		clientset: clientset,
-		namespace: namespace,
-	}
-}
-
-// deploymentToModel converts a Deployment into the API-facing RedisInstance model.
-// Returns nil if d is nil (callers can skip nil without treating it as an error).
-func deploymentToModel(d *appsv1.Deployment) *models.RedisInstance {
-	if d == nil {
-		return nil
-	}
-
-	ns := d.Namespace
-	if ns == "" {
-		ns = "default"
-	}
-
-	capacity := ""
-	if d.Annotations != nil {
-		capacity = d.Annotations[annotationCapacity]
-	}
-
-	status := "unknown"
-	if d.Status.ReadyReplicas >= 1 {
-		status = "running"
-	} else if d.Status.Replicas > 0 {
-		status = "starting"
-	} else {
-		status = "stopped"
-	}
-
-	id := d.Name
-	if d.Annotations != nil {
-		if v := d.Annotations[annotationInstanceID]; v != "" {
-			id = v
-		}
-	}
-
-	return &models.RedisInstance{
-		ID:        id,
-		Name:      d.Name,
-		Namespace: ns,
-		Status:    status,
-		Capacity:  capacity,
-	}
-}
-
-// buildDeployment constructs a Deployment that runs a single Redis container.
-// Labels and annotations match deploymentToModel so list/get work correctly.
-func buildDeployment(name, capacity string) *appsv1.Deployment {
-	labelMap := map[string]string{
-		labelAppKey: labelAppValue,
-	}
-	annotations := map[string]string{
-		annotationInstanceID: name,
-		annotationCapacity:   capacity,
-	}
-	replicas := int32(1)
-
-	return &appsv1.Deployment{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:        name,
-			Labels:      labelMap,
-			Annotations: annotations,
-		},
-		Spec: appsv1.DeploymentSpec{
-			Replicas: &replicas,
-			Selector: &metav1.LabelSelector{
-				MatchLabels: labelMap,
-			},
-			Template: corev1.PodTemplateSpec{
-				ObjectMeta: metav1.ObjectMeta{
-					Labels: labelMap,
-				},
-				Spec: corev1.PodSpec{
-					Containers: []corev1.Container{
-						{
-							Name:  redisContainerName,
-							Image: redisImage,
-							Ports: []corev1.ContainerPort{
-								{
-									Name:          "redis",
-									ContainerPort: redisPort,
-								},
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-}
-
-// buildService constructs a ClusterIP Service that selects the Deployment's Pods
-// by the same labels, exposing the Redis port.
-func buildService(name string) *corev1.Service {
-	labelMap := map[string]string{
-		labelAppKey: labelAppValue,
-	}
-	return &corev1.Service{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:   name,
-			Labels: labelMap,
-		},
-		Spec: corev1.ServiceSpec{
-			Selector: labelMap,
-			Ports: []corev1.ServicePort{
-				{
-					Name:       "redis",
-					Port:       redisPort,
-					TargetPort: intstr.FromInt(redisPort),
-				},
-			},
-			Type: corev1.ServiceTypeClusterIP,
-		},
-	}
-}
-
-// ListInstances returns all Redis instances (Deployments with our label) in the store's namespace.
-func (s *K8sInstanceStore) ListInstances(ctx context.Context) ([]models.RedisInstance, error) {
-	deploymentsClient := s.clientset.AppsV1().Deployments(s.namespace)
-	selector := labels.Set{labelAppKey: labelAppValue}.AsSelector().String()
-
-	list, err := deploymentsClient.List(ctx, metav1.ListOptions{LabelSelector: selector})
+// NewDynamicClient builds a dynamic Kubernetes client from kubeconfig path (for CRDs like RedisFailover).
+func NewDynamicClient(kubeConfigPath string) (dynamic.Interface, error) {
+	config, err := buildRestConfig(kubeConfigPath)
 	if err != nil {
-		return nil, fmt.Errorf("list deployments: %w", err)
+		return nil, err
 	}
+	return dynamic.NewForConfig(config)
+}
 
+// RedisFailoverStore implements InstanceStore using RedisFailover CRs (Spotahome Redis operator).
+// All instance operations go through the dynamic client; the operator handles the actual Redis/Sentinel workloads.
+type RedisFailoverStore struct {
+	client       dynamic.Interface
+	namespace    string
+	templatePath string
+}
+
+// NewRedisFailoverStore returns a store that lists/creates/updates/deletes RedisFailover CRs.
+func NewRedisFailoverStore(client dynamic.Interface, namespace, templatePath string) *RedisFailoverStore {
+	return &RedisFailoverStore{
+		client:       client,
+		namespace:    namespace,
+		templatePath: templatePath,
+	}
+}
+
+// ListInstances returns all RedisFailover CRs in the store's namespace.
+func (s *RedisFailoverStore) ListInstances(ctx context.Context) ([]models.RedisInstance, error) {
+	list, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).List(ctx, metav1.ListOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("list redisfailovers: %w", err)
+	}
 	var instances []models.RedisInstance
 	for i := range list.Items {
-		if inst := deploymentToModel(&list.Items[i]); inst != nil {
+		if inst := redisfailoverToModel(&list.Items[i]); inst != nil {
 			instances = append(instances, *inst)
 		}
 	}
 	return instances, nil
 }
 
-// GetInstance returns a single Redis instance by name (id). Returns an error if not found.
-func (s *K8sInstanceStore) GetInstance(ctx context.Context, id string) (*models.RedisInstance, error) {
-	deploy, err := s.clientset.AppsV1().Deployments(s.namespace).Get(ctx, id, metav1.GetOptions{})
+// GetInstance returns a single RedisFailover by name (id).
+func (s *RedisFailoverStore) GetInstance(ctx context.Context, id string) (*models.RedisInstance, error) {
+	obj, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("get deployment %q: %w", id, err)
+		return nil, fmt.Errorf("get redisfailover %q: %w", id, err)
 	}
-	return deploymentToModel(deploy), nil
+	return redisfailoverToModel(obj), nil
 }
 
-// CreateInstance creates a new Redis instance (Deployment + Service) from the request.
-func (s *K8sInstanceStore) CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error) {
+// CreateInstance creates a new RedisFailover CR from the request by rendering the template and applying it.
+func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error) {
 	if req.Name == "" {
 		return nil, fmt.Errorf("name is required")
 	}
-	deploymentsClient := s.clientset.AppsV1().Deployments(s.namespace)
-	servicesClient := s.clientset.CoreV1().Services(s.namespace)
-
-	deploy := buildDeployment(req.Name, req.Capacity)
-	created, err := deploymentsClient.Create(ctx, deploy, metav1.CreateOptions{})
+	data := BuildRedisFailoverTemplateData(req, s.namespace)
+	yamlBytes, err := RenderRedisFailoverTemplate(s.templatePath, data)
 	if err != nil {
-		return nil, fmt.Errorf("create deployment: %w", err)
+		return nil, fmt.Errorf("render template: %w", err)
 	}
-	svc := buildService(req.Name)
-	if _, err := servicesClient.Create(ctx, svc, metav1.CreateOptions{}); err != nil {
-		return nil, fmt.Errorf("create service: %w", err)
+	obj, err := DecodeYAMLToUnstructured(yamlBytes)
+	if err != nil {
+		return nil, fmt.Errorf("decode yaml: %w", err)
 	}
-	return deploymentToModel(created), nil
+	obj.SetNamespace(s.namespace)
+	created, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Create(ctx, obj, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("create redisfailover: %w", err)
+	}
+	return redisfailoverToModel(created), nil
 }
 
-// UpdateInstanceCapacity updates the capacity annotation on the Deployment.
-func (s *K8sInstanceStore) UpdateInstanceCapacity(ctx context.Context, id string, capacity string) (*models.RedisInstance, error) {
-	deploymentsClient := s.clientset.AppsV1().Deployments(s.namespace)
-	deploy, err := deploymentsClient.Get(ctx, id, metav1.GetOptions{})
+// UpdateInstanceCapacity updates the storage size on the RedisFailover CR.
+func (s *RedisFailoverStore) UpdateInstanceCapacity(ctx context.Context, id string, capacity string) (*models.RedisInstance, error) {
+	obj, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("get deployment %q: %w", id, err)
+		return nil, fmt.Errorf("get redisfailover %q: %w", id, err)
 	}
-	if deploy.Annotations == nil {
-		deploy.Annotations = make(map[string]string)
+	if err := unstructured.SetNestedField(obj.Object, capacity, "spec", "redis", "storage", "persistentVolumeClaim", "spec", "resources", "requests", "storage"); err != nil {
+		return nil, fmt.Errorf("set storage: %w", err)
 	}
-	deploy.Annotations[annotationCapacity] = capacity
-	updated, err := deploymentsClient.Update(ctx, deploy, metav1.UpdateOptions{})
+	updated, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Update(ctx, obj, metav1.UpdateOptions{})
 	if err != nil {
-		return nil, fmt.Errorf("update deployment %q: %w", id, err)
+		return nil, fmt.Errorf("update redisfailover %q: %w", id, err)
 	}
-	return deploymentToModel(updated), nil
+	return redisfailoverToModel(updated), nil
 }
 
-// DeleteInstance deletes the Deployment and its Service.
-func (s *K8sInstanceStore) DeleteInstance(ctx context.Context, id string) error {
-	deploymentsClient := s.clientset.AppsV1().Deployments(s.namespace)
-	servicesClient := s.clientset.CoreV1().Services(s.namespace)
-	propagation := metav1.DeletePropagationForeground
-
-	if err := deploymentsClient.Delete(ctx, id, metav1.DeleteOptions{PropagationPolicy: &propagation}); err != nil {
-		return fmt.Errorf("delete deployment %q: %w", id, err)
+// DeleteInstance deletes the RedisFailover CR; the operator cleans up the underlying resources.
+func (s *RedisFailoverStore) DeleteInstance(ctx context.Context, id string) error {
+	if err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Delete(ctx, id, metav1.DeleteOptions{}); err != nil {
+		return fmt.Errorf("delete redisfailover %q: %w", id, err)
 	}
-	_ = servicesClient.Delete(ctx, id, metav1.DeleteOptions{})
 	return nil
+}
+
+// redisfailoverToModel maps a RedisFailover CR to the API RedisInstance model.
+func redisfailoverToModel(obj *unstructured.Unstructured) *models.RedisInstance {
+	if obj == nil {
+		return nil
+	}
+	name, _, _ := unstructured.NestedString(obj.Object, "metadata", "name")
+	ns, _, _ := unstructured.NestedString(obj.Object, "metadata", "namespace")
+	if ns == "" {
+		ns = "default"
+	}
+	status := "unknown"
+	if phase, ok, _ := unstructured.NestedString(obj.Object, "status", "phase"); ok && phase != "" {
+		status = phase
+	}
+	capacity, _, _ := unstructured.NestedString(obj.Object, "spec", "redis", "storage", "persistentVolumeClaim", "spec", "resources", "requests", "storage")
+	redisReplicas, _, _ := unstructured.NestedInt64(obj.Object, "spec", "redis", "replicas")
+	sentinelReplicas, _, _ := unstructured.NestedInt64(obj.Object, "spec", "sentinel", "replicas")
+	return &models.RedisInstance{
+		ID:               name,
+		Name:             name,
+		Namespace:        ns,
+		Status:           status,
+		Capacity:         capacity,
+		RedisReplicas:    int(redisReplicas),
+		SentinelReplicas: int(sentinelReplicas),
+	}
 }

@@ -22,6 +22,7 @@ func NewApplication(store k8s.InstanceStore, logger *slog.Logger) *Application {
 	}
 }
 
+// ListInstances returns a list of all Redis instances in the store's namespace.
 func (a *Application) ListInstances(c echo.Context) error {
 	ctx := c.Request().Context()
 	instances, err := a.Store.ListInstances(ctx)
@@ -31,3 +32,17 @@ func (a *Application) ListInstances(c echo.Context) error {
 	}
 	return c.JSON(http.StatusOK, instances)
 }
+
+// GetInstance returns a single Redis instance by name (id). Returns an error if not found.
+func (a *Application) GetInstance(c echo.Context) error {
+	id := c.Param("id")
+	ctx := c.Request().Context()
+	instance, err := a.Store.GetInstance(ctx, id)
+	if err != nil {
+		a.Logger.Error("intance not found", "error", err)
+		return c.JSON(http.StatusNotFound, map[string]string{"error": fmt.Errorf("instance not found").Error()})
+	}
+	return c.JSON(http.StatusOK, instance)
+}
+
+

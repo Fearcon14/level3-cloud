@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/models"
 
@@ -89,6 +90,7 @@ func NewRedisFailoverStore(client dynamic.Interface, namespace, templatePath, de
 }
 
 // ListInstances returns all RedisFailover CRs in the store's namespace.
+// If a CR has no status (e.g. Spotahome operator), status is inferred from that instance's pods.
 func (s *RedisFailoverStore) ListInstances(ctx context.Context) ([]models.RedisInstance, error) {
 	list, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).List(ctx, metav1.ListOptions{})
 	if err != nil {
@@ -96,7 +98,11 @@ func (s *RedisFailoverStore) ListInstances(ctx context.Context) ([]models.RedisI
 	}
 	var instances []models.RedisInstance
 	for i := range list.Items {
-		if inst := redisfailoverToModel(&list.Items[i]); inst != nil {
+		inst := redisfailoverToModel(&list.Items[i])
+		if inst != nil {
+			if inst.Status == "unknown" {
+				inst.Status = s.inferStatusFromPods(ctx, inst.Name)
+			}
 			instances = append(instances, *inst)
 		}
 	}
@@ -104,6 +110,7 @@ func (s *RedisFailoverStore) ListInstances(ctx context.Context) ([]models.RedisI
 }
 
 // GetInstance returns a single RedisFailover by name (id). Returns ErrNotFound if the CR does not exist.
+// If the CR has no status (e.g. Spotahome operator), status is inferred from the instance's pods.
 func (s *RedisFailoverStore) GetInstance(ctx context.Context, id string) (*models.RedisInstance, error) {
 	obj, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
@@ -112,7 +119,11 @@ func (s *RedisFailoverStore) GetInstance(ctx context.Context, id string) (*model
 		}
 		return nil, fmt.Errorf("get redisfailover %q: %w", id, err)
 	}
-	return redisfailoverToModel(obj), nil
+	inst := redisfailoverToModel(obj)
+	if inst != nil && inst.Status == "unknown" {
+		inst.Status = s.inferStatusFromPods(ctx, id)
+	}
+	return inst, nil
 }
 
 // CreateInstance implements template → create: validate request, render RedisFailover from template, decode YAML, then create CR via dynamic client.
@@ -187,7 +198,11 @@ func (s *RedisFailoverStore) DeleteInstance(ctx context.Context, id string) erro
 	return nil
 }
 
+// gvrPods is used to infer instance status from pod phases when the CR has no status (e.g. Spotahome operator).
+var gvrPods = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+
 // redisfailoverToModel maps a RedisFailover CR to the API RedisInstance model.
+// Status is read from status.phase, status.state, or status.status; if none set, remains "unknown".
 func redisfailoverToModel(obj *unstructured.Unstructured) *models.RedisInstance {
 	if obj == nil {
 		return nil
@@ -198,8 +213,11 @@ func redisfailoverToModel(obj *unstructured.Unstructured) *models.RedisInstance 
 		ns = "default"
 	}
 	status := "unknown"
-	if phase, ok, _ := unstructured.NestedString(obj.Object, "status", "phase"); ok && phase != "" {
-		status = phase
+	for _, path := range []string{"status.phase", "status.state", "status.status"} {
+		if v, ok, _ := unstructured.NestedString(obj.Object, pathToSlice(path)...); ok && v != "" {
+			status = v
+			break
+		}
 	}
 	capacity, _, _ := unstructured.NestedString(obj.Object, "spec", "redis", "storage", "persistentVolumeClaim", "spec", "resources", "requests", "storage")
 	redisReplicas, _, _ := unstructured.NestedInt64(obj.Object, "spec", "redis", "replicas")
@@ -213,4 +231,53 @@ func redisfailoverToModel(obj *unstructured.Unstructured) *models.RedisInstance 
 		RedisReplicas:    int(redisReplicas),
 		SentinelReplicas: int(sentinelReplicas),
 	}
+}
+
+func pathToSlice(path string) []string {
+	var out []string
+	for _, s := range splitPath(path) {
+		if s != "" {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+func splitPath(path string) []string {
+	return strings.Split(path, ".")
+}
+
+// inferStatusFromPods infers instance status from pod phases when the RedisFailover CR has no status.
+// Lists pods with label app.kubernetes.io/instance=<name> (Spotahome operator convention).
+func (s *RedisFailoverStore) inferStatusFromPods(ctx context.Context, name string) string {
+	list, err := s.client.Resource(gvrPods).Namespace(s.namespace).List(ctx, metav1.ListOptions{
+		LabelSelector: "app.kubernetes.io/instance=" + name,
+	})
+	if err != nil || len(list.Items) == 0 {
+		return "unknown"
+	}
+	hasPending := false
+	hasRunning := false
+	hasFailed := false
+	for i := range list.Items {
+		phase, _, _ := unstructured.NestedString(list.Items[i].Object, "status", "phase")
+		switch phase {
+		case "Running":
+			hasRunning = true
+		case "Pending":
+			hasPending = true
+		case "Failed":
+			hasFailed = true
+		}
+	}
+	if hasFailed {
+		return "failed"
+	}
+	if hasPending {
+		return "pending"
+	}
+	if hasRunning {
+		return "running"
+	}
+	return "unknown"
 }

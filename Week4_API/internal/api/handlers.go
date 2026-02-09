@@ -24,7 +24,7 @@ func NewApplication(store k8s.InstanceStore, logger *slog.Logger) *Application {
 }
 
 // ListInstances returns a list of all Redis instances in the store's namespace.
-func (a *Application) ListInstances(c echo.Context) error {
+func (a *Application) ListInstances(c *echo.Context) error {
 	ctx := c.Request().Context()
 
 	instances, err := a.Store.ListInstances(ctx)
@@ -36,7 +36,7 @@ func (a *Application) ListInstances(c echo.Context) error {
 }
 
 // GetInstance returns a single Redis instance by name (id). Returns an error if not found.
-func (a *Application) GetInstance(c echo.Context) error {
+func (a *Application) GetInstance(c *echo.Context) error {
 	id := c.Param("id")
 	ctx := c.Request().Context()
 
@@ -49,7 +49,7 @@ func (a *Application) GetInstance(c echo.Context) error {
 }
 
 // CreateInstance creates a new Redis instance from the request.
-func (a *Application) CreateInstance(c echo.Context) error {
+func (a *Application) CreateInstance(c *echo.Context) error {
 	var req models.CreateRedisRequest
 
 	if err := c.Bind(&req); err != nil {
@@ -73,7 +73,7 @@ func (a *Application) CreateInstance(c echo.Context) error {
 }
 
 // UpdateInstanceCapacity updates the capacity of an existing Redis instance.
-func (a *Application) UpdateInstanceCapacity(c echo.Context) error {
+func (a *Application) UpdateInstanceCapacity(c *echo.Context) error {
 	id := c.Param("id")
 	var req models.UpdateInstanceCapacityRequest
 	if err := c.Bind(&req); err != nil {
@@ -91,7 +91,7 @@ func (a *Application) UpdateInstanceCapacity(c echo.Context) error {
 }
 
 // DeleteInstance deletes an existing Redis instance.
-func (a *Application) DeleteInstance(c echo.Context) error {
+func (a *Application) DeleteInstance(c *echo.Context) error {
 	id := c.Param("id")
 	ctx := c.Request().Context()
 	if err := a.Store.DeleteInstance(ctx, id); err != nil {

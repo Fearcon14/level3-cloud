@@ -195,3 +195,82 @@ func buildService(name string) *corev1.Service {
 		},
 	}
 }
+
+// ListInstances returns all Redis instances (Deployments with our label) in the store's namespace.
+func (s *K8sInstanceStore) ListInstances(ctx context.Context) ([]models.RedisInstance, error) {
+	deploymentsClient := s.clientset.AppsV1().Deployments(s.namespace)
+	selector := labels.Set{labelAppKey: labelAppValue}.AsSelector().String()
+
+	list, err := deploymentsClient.List(ctx, metav1.ListOptions{LabelSelector: selector})
+	if err != nil {
+		return nil, fmt.Errorf("list deployments: %w", err)
+	}
+
+	var instances []models.RedisInstance
+	for i := range list.Items {
+		if inst := deploymentToModel(&list.Items[i]); inst != nil {
+			instances = append(instances, *inst)
+		}
+	}
+	return instances, nil
+}
+
+// GetInstance returns a single Redis instance by name (id). Returns an error if not found.
+func (s *K8sInstanceStore) GetInstance(ctx context.Context, id string) (*models.RedisInstance, error) {
+	deploy, err := s.clientset.AppsV1().Deployments(s.namespace).Get(ctx, id, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("get deployment %q: %w", id, err)
+	}
+	return deploymentToModel(deploy), nil
+}
+
+// CreateInstance creates a new Redis instance (Deployment + Service) from the request.
+func (s *K8sInstanceStore) CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error) {
+	if req.Name == "" {
+		return nil, fmt.Errorf("name is required")
+	}
+	deploymentsClient := s.clientset.AppsV1().Deployments(s.namespace)
+	servicesClient := s.clientset.CoreV1().Services(s.namespace)
+
+	deploy := buildDeployment(req.Name, req.Capacity)
+	created, err := deploymentsClient.Create(ctx, deploy, metav1.CreateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("create deployment: %w", err)
+	}
+	svc := buildService(req.Name)
+	if _, err := servicesClient.Create(ctx, svc, metav1.CreateOptions{}); err != nil {
+		return nil, fmt.Errorf("create service: %w", err)
+	}
+	return deploymentToModel(created), nil
+}
+
+// UpdateInstanceCapacity updates the capacity annotation on the Deployment.
+func (s *K8sInstanceStore) UpdateInstanceCapacity(ctx context.Context, id string, capacity string) (*models.RedisInstance, error) {
+	deploymentsClient := s.clientset.AppsV1().Deployments(s.namespace)
+	deploy, err := deploymentsClient.Get(ctx, id, metav1.GetOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("get deployment %q: %w", id, err)
+	}
+	if deploy.Annotations == nil {
+		deploy.Annotations = make(map[string]string)
+	}
+	deploy.Annotations[annotationCapacity] = capacity
+	updated, err := deploymentsClient.Update(ctx, deploy, metav1.UpdateOptions{})
+	if err != nil {
+		return nil, fmt.Errorf("update deployment %q: %w", id, err)
+	}
+	return deploymentToModel(updated), nil
+}
+
+// DeleteInstance deletes the Deployment and its Service.
+func (s *K8sInstanceStore) DeleteInstance(ctx context.Context, id string) error {
+	deploymentsClient := s.clientset.AppsV1().Deployments(s.namespace)
+	servicesClient := s.clientset.CoreV1().Services(s.namespace)
+	propagation := metav1.DeletePropagationForeground
+
+	if err := deploymentsClient.Delete(ctx, id, metav1.DeleteOptions{PropagationPolicy: &propagation}); err != nil {
+		return fmt.Errorf("delete deployment %q: %w", id, err)
+	}
+	_ = servicesClient.Delete(ctx, id, metav1.DeleteOptions{})
+	return nil
+}

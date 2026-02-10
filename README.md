@@ -103,8 +103,8 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ### Scope
 
-- [ ] **API Development for Product Instances**: Development of a RESTful API that provides the following functions: creation, deletion, and listing of PaaS product instances, as well as retrieval of the associated connection and access data.
-    - [ ] API Specification: The functionality of the API must be documented in the form of OpenAPI specifications
+- [x] **API Development for Product Instances**: Development of a RESTful API that provides the following functions: creation, deletion, and listing of PaaS product instances, as well as retrieval of the associated connection and access data.
+    - [x] API Specification: The functionality of the API must be documented in the form of OpenAPI specifications
 - [ ] **Unit Tests:** Implementation of simple Unit Tests for each endpoint of the developed API
 - [ ] **Docker Container Image** for the API creation, upload to the STACKIT Container Registry, and provisioning of the API via SKE
 - [ ] **Understanding the Creation Process (Create Flow):**

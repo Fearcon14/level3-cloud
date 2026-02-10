@@ -12,10 +12,10 @@ type RedisInstance struct {
 	SentinelReplicas int    `json:"sentinelReplicas,omitempty"`
 
 	// Connection / access data for public connectivity.
-	PublicServiceName string `json:"publicServiceName,omitempty"`
-	PublicHostname    string `json:"publicHostname,omitempty"`
-	PublicPort        int    `json:"publicPort,omitempty"`
-	PublicEndpoint    string `json:"publicEndpoint,omitempty"`
+	PublicServiceName string `json:"publicServiceName"`
+	PublicHostname    string `json:"publicHostname"`
+	PublicPort        int    `json:"publicPort"`
+	PublicEndpoint    string `json:"publicEndpoint"`
 }
 
 // CreateRedisRequest is the body for POST /instances

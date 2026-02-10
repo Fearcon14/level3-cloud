@@ -223,7 +223,118 @@ func TestGetInstance_Handler(t *testing.T) {
 }
 
 // GET List of Instances
+func TestListInstances_Handler(t *testing.T) {
+	tests := []struct {
+		name           string
+		mockStore      *mockStore
+		wantStatusCode int
+	}{
+		{
+			name: "success with instances",
+			mockStore: &mockStore{
+				ListInstancesFn: func(ctx context.Context) ([]models.RedisInstance, error) {
+					return []models.RedisInstance{
+						{
+							ID:                "redis-1",
+							Name:              "redis-1",
+							Namespace:         "test",
+							Status:            "running",
+							Capacity:          "1Gi",
+							RedisReplicas:     3,
+							SentinelReplicas:  3,
+							PublicServiceName: "redis-1-public",
+							PublicHostname:    "",
+							PublicPort:        6379,
+							PublicEndpoint:    "",
+						},
+					}, nil
+				},
+			},
+			wantStatusCode: http.StatusOK,
+		},
+		{
+			name: "store error returns 500",
+			mockStore: &mockStore{
+				ListInstancesFn: func(ctx context.Context) ([]models.RedisInstance, error) {
+					return nil, errors.New("backend failure")
+				},
+			},
+			wantStatusCode: http.StatusInternalServerError,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newEcho()
+			app := newTestApp(tt.mockStore)
+
+			req := httptest.NewRequest(http.MethodGet, "/api/v1/instances", nil)
+			rec := httptest.NewRecorder()
+
+			e.GET("/api/v1/instances", app.ListInstances)
+			e.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatusCode {
+				t.Fatalf("unexpected status code: got %d, want %d; body=%s", rec.Code, tt.wantStatusCode, rec.Body.String())
+			}
+		})
+	}
+}
 
 // DELETE single Instance
+func TestDeleteInstance_Handler(t *testing.T) {
+	tests := []struct {
+		name           string
+		id             string
+		mockStore      *mockStore
+		wantStatusCode int
+	}{
+		{
+			name: "success no content",
+			id:   "redis-1",
+			mockStore: &mockStore{
+				DeleteInstanceFn: func(ctx context.Context, id string) error {
+					return nil
+				},
+			},
+			wantStatusCode: http.StatusNoContent,
+		},
+		{
+			name: "not found",
+			id:   "missing",
+			mockStore: &mockStore{
+				DeleteInstanceFn: func(ctx context.Context, id string) error {
+					return k8s.ErrNotFound
+				},
+			},
+			wantStatusCode: http.StatusNotFound,
+		},
+		{
+			name: "store error returns 500",
+			id:   "redis-1",
+			mockStore: &mockStore{
+				DeleteInstanceFn: func(ctx context.Context, id string) error {
+					return errors.New("backend failure")
+				},
+			},
+			wantStatusCode: http.StatusInternalServerError,
+		},
+	}
 
-// PUT Update Instance Capacity
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			e := newEcho()
+			app := newTestApp(tt.mockStore)
+
+			req := httptest.NewRequest(http.MethodDelete, "/api/v1/instances/"+tt.id, nil)
+			rec := httptest.NewRecorder()
+
+			e.DELETE("/api/v1/instances/:id", app.DeleteInstance)
+			e.ServeHTTP(rec, req)
+
+			if rec.Code != tt.wantStatusCode {
+				t.Fatalf("unexpected status code: got %d, want %d; body=%s", rec.Code, tt.wantStatusCode, rec.Body.String())
+			}
+		})
+	}
+}

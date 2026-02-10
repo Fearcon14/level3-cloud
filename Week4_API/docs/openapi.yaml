@@ -1,0 +1,287 @@
+openapi: 3.0.3
+info:
+  title: Kevins Redis Instance Management API
+  version: 1.0.0
+  description: |
+    API for managing Redis instances backed by Kubernetes RedisFailover custom resources.
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+
+paths:
+  /api/v1/instances:
+    get:
+      summary: List Redis instances
+      operationId: listInstances
+      tags:
+        - Instances
+      responses:
+        '200':
+          description: List of Redis instances
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RedisInstance'
+        '500':
+          description: Failed to list instances
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    post:
+      summary: Create a Redis instance
+      operationId: createInstance
+      tags:
+        - Instances
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateRedisRequest'
+      responses:
+        '201':
+          description: Redis instance created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedisInstance'
+        '400':
+          description: Invalid request body or missing required fields
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to create instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/instances/{id}:
+    get:
+      summary: Get a Redis instance
+      operationId: getInstance
+      tags:
+        - Instances
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID (name) of the Redis instance
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Redis instance found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedisInstance'
+        '404':
+          description: Instance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to get instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+    delete:
+      summary: Delete a Redis instance
+      operationId: deleteInstance
+      tags:
+        - Instances
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID (name) of the Redis instance
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Instance deleted successfully (no content)
+        '404':
+          description: Instance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to delete instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/instances/{id}/capacity:
+    put:
+      summary: Update Redis instance capacity
+      operationId: updateInstanceCapacity
+      tags:
+        - Instances
+      parameters:
+        - name: id
+          in: path
+          required: true
+          description: ID (name) of the Redis instance
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateInstanceCapacityRequest'
+      responses:
+        '200':
+          description: Updated Redis instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedisInstance'
+        '400':
+          description: Invalid request body (e.g., missing capacity)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Instance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to update instance
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    RedisInstance:
+      type: object
+      description: Representation of a Redis instance.
+      properties:
+        id:
+          type: string
+          description: Unique identifier of the instance.
+          example: redis-demo
+        name:
+          type: string
+          description: Name of the underlying RedisFailover resource.
+          example: redis-demo
+        namespace:
+          type: string
+          description: Kubernetes namespace where the instance lives.
+          example: redis
+        status:
+          type: string
+          description: High-level status of the instance.
+          example: Ready
+        capacity:
+          type: string
+          description: Storage capacity (e.g. Kubernetes PVC size).
+          example: 10Gi
+        redisReplicas:
+          type: integer
+          format: int32
+          nullable: true
+          description: Number of Redis replicas.
+          example: 3
+        sentinelReplicas:
+          type: integer
+          format: int32
+          nullable: true
+          description: Number of Sentinel replicas.
+          example: 3
+      required:
+        - id
+        - name
+        - namespace
+        - status
+        - capacity
+
+    CreateRedisRequest:
+      type: object
+      description: Request body for creating a Redis instance.
+      properties:
+        name:
+          type: string
+          description: Name of the instance (and underlying RedisFailover).
+          example: redis-demo
+        capacity:
+          type: string
+          description: Storage capacity (e.g. "10Gi").
+          example: 10Gi
+        redisReplicas:
+          type: integer
+          format: int32
+          nullable: true
+          description: Number of Redis replicas; default applied if omitted.
+          example: 3
+        sentinelReplicas:
+          type: integer
+          format: int32
+          nullable: true
+          description: Number of Sentinel replicas; default applied if omitted.
+          example: 3
+        storageClass:
+          type: string
+          description: Kubernetes StorageClass name.
+          example: premium-perf1-stackit
+        cpuRequest:
+          type: string
+          description: CPU request for Redis pods (e.g. "100m").
+          example: 100m
+        memoryRequest:
+          type: string
+          description: Memory request for Redis pods (e.g. "128Mi").
+          example: 128Mi
+        cpuLimit:
+          type: string
+          description: CPU limit for Redis pods (e.g. "500m").
+          example: 500m
+        memoryLimit:
+          type: string
+          description: Memory limit for Redis pods (e.g. "512Mi").
+          example: 512Mi
+      required:
+        - name
+        - capacity
+
+    UpdateInstanceCapacityRequest:
+      type: object
+      description: Request body for updating capacity (and optionally storage class).
+      properties:
+        capacity:
+          type: string
+          description: New storage capacity (e.g. "20Gi").
+          example: 20Gi
+        storageClass:
+          type: string
+          description: New StorageClass; optional.
+          example: premium-perf1-stackit
+      required:
+        - capacity
+
+    ErrorResponse:
+      type: object
+      description: Generic error response.
+      properties:
+        error:
+          type: string
+          description: Error message.
+          example: instance not found
+      required:
+        - error

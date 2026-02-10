@@ -3,13 +3,19 @@ package models
 // RedisInstance represents a Redis instance (backed by a RedisFailover CR).
 // Read-only fields (e.g. RedisReplicas, SentinelReplicas) are filled from the CR when listing/getting.
 type RedisInstance struct {
-	ID                string `json:"id"`
-	Name              string `json:"name"`
-	Namespace         string `json:"namespace"`
-	Status            string `json:"status"`
-	Capacity          string `json:"capacity"`
-	RedisReplicas     int    `json:"redisReplicas,omitempty"`
-	SentinelReplicas  int    `json:"sentinelReplicas,omitempty"`
+	ID               string `json:"id"`
+	Name             string `json:"name"`
+	Namespace        string `json:"namespace"`
+	Status           string `json:"status"`
+	Capacity         string `json:"capacity"`
+	RedisReplicas    int    `json:"redisReplicas,omitempty"`
+	SentinelReplicas int    `json:"sentinelReplicas,omitempty"`
+
+	// Connection / access data for public connectivity.
+	PublicServiceName string `json:"publicServiceName,omitempty"`
+	PublicHostname    string `json:"publicHostname,omitempty"`
+	PublicPort        int    `json:"publicPort,omitempty"`
+	PublicEndpoint    string `json:"publicEndpoint,omitempty"`
 }
 
 // CreateRedisRequest is the body for POST /instances

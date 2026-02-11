@@ -303,7 +303,7 @@ func redisfailoverToModel(obj *unstructured.Unstructured) *models.RedisInstance 
 }
 
 // attachConnectionInfo enriches a RedisInstance with in-cluster connection data.
-// The Spotahome operator creates a ClusterIP Service named "<name>-redis"; we expose that DNS and port.
+// The Spotahome Redis operator creates a ClusterIP Service "rfrm-<name>-redis" for the Redis master (port 6379).
 func (s *RedisFailoverStore) attachConnectionInfo(ctx context.Context, inst *models.RedisInstance) {
 	if inst == nil {
 		return
@@ -312,7 +312,7 @@ func (s *RedisFailoverStore) attachConnectionInfo(ctx context.Context, inst *mod
 	if ns == "" {
 		ns = "default"
 	}
-	svcName := inst.Name + "-redis"
+	svcName := "rfrm-" + inst.Name + "-redis"
 	inst.PublicServiceName = svcName
 	inst.PublicPort = 6379
 	inst.PublicHostname = fmt.Sprintf("%s.%s.svc.cluster.local", svcName, ns)

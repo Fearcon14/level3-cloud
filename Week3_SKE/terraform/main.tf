@@ -30,3 +30,50 @@ resource "local_sensitive_file" "kubeconfig" {
 	filename        = "${path.module}/kubeconfig-${stackit_ske_cluster.cluster.name}"
 	file_permission = "0600"
 }
+
+# Install Argo CD into the SKE cluster using Helm.
+resource "helm_release" "argocd" {
+  name             = "argocd"
+  repository       = "https://argoproj.github.io/argo-helm"
+  chart            = "argo-cd"
+  namespace        = "argocd"
+  create_namespace = true
+
+  depends_on = [
+    local_sensitive_file.kubeconfig,
+  ]
+}
+
+# Argo CD Application that points to this repo's Redis operator manifests.
+resource "kubernetes_manifest" "argocd_redis_operator_app" {
+  depends_on = [
+    helm_release.argocd,
+  ]
+
+  manifest = {
+    apiVersion = "argoproj.io/v1alpha1"
+    kind       = "Application"
+    metadata = {
+      name      = "redis-operator"
+      namespace = "argocd"
+    }
+    spec = {
+      project = "default"
+      source = {
+        repoURL        = "https://github.com/Fearcon14/level3-cloud.git"
+        targetRevision = "main"
+        path           = "Week3_SKE/kubernetes/spotahome_redis_operator"
+      }
+      destination = {
+        server    = "https://kubernetes.default.svc"
+        namespace = "default"
+      }
+      syncPolicy = {
+        automated = {
+          prune    = true
+          selfHeal = true
+        }
+      }
+    }
+  }
+}

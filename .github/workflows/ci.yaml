@@ -18,7 +18,7 @@ jobs:
       - name: Run yamllint
         uses: ibiqlik/action-yamllint@v3
         with:
-          file_or_dir: Week3_SKE/kubernetes/spotahome_redis_operator/instances/
+          file_or_dir: Week3_SKE/kubernetes/spotahome_redis_operator
           config_data: |
             extends: default
             rules:
@@ -41,4 +41,4 @@ jobs:
           # We check the specific folder where your manifests are
           # -ignore-missing-schemas is needed for CRDs (like RedisFailover)
           # because standard K8s doesn't know about them by default.
-          args: "-summary -ignore-missing-schemas Week3_SKE/kubernetes/spotahome_redis_operator/instances/"
+          args: "-summary -ignore-missing-schemas Week3_SKE/kubernetes/spotahome_redis_operator"

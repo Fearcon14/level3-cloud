@@ -196,34 +196,28 @@ components:
         redisReplicas:
           type: integer
           format: int32
-          nullable: true
           description: Number of Redis replicas.
           example: 3
         sentinelReplicas:
           type: integer
           format: int32
-          nullable: true
           description: Number of Sentinel replicas.
           example: 3
         publicServiceName:
           type: string
-          nullable: true
           description: Name of the Kubernetes Service of type LoadBalancer backing the public endpoint.
           example: redis-demo-public
         publicHostname:
           type: string
-          nullable: true
           description: External hostname or IP address of the public LoadBalancer.
           example: 203.0.113.10
         publicPort:
           type: integer
           format: int32
-          nullable: true
           description: Public TCP port used to connect to Redis (typically 6379).
           example: 6379
         publicEndpoint:
           type: string
-          nullable: true
           description: Convenience connection string in the form "host:port".
           example: 203.0.113.10:6379
       required:
@@ -248,13 +242,11 @@ components:
         redisReplicas:
           type: integer
           format: int32
-          nullable: true
           description: Number of Redis replicas; default applied if omitted.
           example: 3
         sentinelReplicas:
           type: integer
           format: int32
-          nullable: true
           description: Number of Sentinel replicas; default applied if omitted.
           example: 3
         storageClass:

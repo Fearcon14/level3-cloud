@@ -44,6 +44,24 @@ resource "helm_release" "argocd" {
   ]
 }
 
+# Ingress controller: one LoadBalancer for all HTTP traffic; routes via Ingress resources.
+resource "helm_release" "ingress_nginx" {
+  name             = "ingress-nginx"
+  repository       = "https://kubernetes.github.io/ingress-nginx"
+  chart            = "ingress-nginx"
+  namespace        = "ingress-nginx"
+  create_namespace = true
+
+  set {
+    name  = "controller.service.type"
+    value = "LoadBalancer"
+  }
+
+  depends_on = [
+    local_sensitive_file.kubeconfig,
+  ]
+}
+
 # Argo CD Application that points to this repo's Redis operator manifests.
 resource "kubernetes_manifest" "argocd_redis_operator_app" {
   depends_on = [
@@ -145,3 +163,4 @@ resource "kubernetes_manifest" "argocd_paas_api_app" {
     }
   }
 }
+

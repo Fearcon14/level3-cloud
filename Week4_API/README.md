@@ -64,6 +64,19 @@ Optional env vars:
 
 Then reference `registry.onstackit.cloud/kevin-sinn/paas-api:latest` in your Kubernetes Deployment (e.g. `Week4_API/API/deployment.yaml` or GitOps manifests).
 
+### Accessing the API (Ingress)
+
+The cluster uses **one** LoadBalancer for the ingress controller (ingress-nginx). The PaaS API is exposed via an Ingress (`Week4_API/API/ingress.yaml`) with host `paas-api`. After the ingress controller has an external IP:
+
+```bash
+# Get the LoadBalancer IP
+kubectl get svc -n ingress-nginx ingress-nginx-controller -o jsonpath='{.status.loadBalancer.ingress[0].ip}'
+# Add to /etc/hosts: <that-ip> paas-api
+# Then: curl http://paas-api/instances
+```
+
+Redis instances use **in-cluster** connection info only (no per-instance LoadBalancer): `publicEndpoint` is the internal DNS (e.g. `<name>-redis.default.svc.cluster.local:6379`). Use from pods in the same cluster or via `kubectl port-forward`.
+
 ### Image pull secret (ErrImagePull on SKE)
 
 STACKIT Container Registry is private. So the cluster needs credentials to pull the image. Create a `docker-registry` secret in the same namespace as the deployment (e.g. `default`), then the deployment’s `imagePullSecrets` will use it:

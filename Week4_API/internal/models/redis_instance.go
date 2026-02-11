@@ -11,11 +11,11 @@ type RedisInstance struct {
 	RedisReplicas    int    `json:"redisReplicas,omitempty"`
 	SentinelReplicas int    `json:"sentinelReplicas,omitempty"`
 
-	// Connection / access data for public connectivity.
-	PublicServiceName string `json:"publicServiceName"`
-	PublicHostname    string `json:"publicHostname"`
-	PublicPort        int    `json:"publicPort"`
-	PublicEndpoint    string `json:"publicEndpoint"`
+	// Connection / access data (in-cluster DNS; use from pods in the same cluster or via port-forward).
+	PublicServiceName string `json:"publicServiceName"` // e.g. "<name>-redis"
+	PublicHostname    string `json:"publicHostname"`    // e.g. "<name>-redis.default.svc.cluster.local"
+	PublicPort        int    `json:"publicPort"`        // 6379
+	PublicEndpoint    string `json:"publicEndpoint"`    // host:port for Redis clients
 }
 
 // CreateRedisRequest is the body for POST /instances

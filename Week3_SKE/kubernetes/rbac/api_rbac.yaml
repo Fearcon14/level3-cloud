@@ -17,10 +17,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods", "endpoints"]
     verbs: ["get", "list", "watch"]
-  # Create/update/delete Services for LoadBalancer (public Redis access); read for connection info
+  # Create/get namespaces for per-user tenant namespaces (created on first use)
   - apiGroups: [""]
-    resources: ["services"]
-    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+    resources: ["namespaces"]
+    verbs: ["get", "create"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

@@ -37,6 +37,25 @@ type InstanceStore interface {
 	DeleteInstance(ctx context.Context, id string) error
 }
 
+// namespaceKey is used to store the target namespace in the context for multi-tenant operation.
+type namespaceKey struct{}
+
+// WithNamespace returns a derived context that carries the Kubernetes namespace to operate in.
+func WithNamespace(ctx context.Context, ns string) context.Context {
+	return context.WithValue(ctx, namespaceKey{}, ns)
+}
+
+// namespaceFromContext returns the namespace from context, falling back to the store's default or "default".
+func namespaceFromContext(ctx context.Context, fallback string) string {
+	if v, ok := ctx.Value(namespaceKey{}).(string); ok && v != "" {
+		return v
+	}
+	if fallback != "" {
+		return fallback
+	}
+	return "default"
+}
+
 // buildRestConfig returns *rest.Config for the given kubeconfig path or fallbacks.
 func buildRestConfig(kubeConfigPath string) (*rest.Config, error) {
 	if kubeConfigPath != "" {
@@ -72,9 +91,9 @@ func NewDynamicClient(kubeConfigPath string) (dynamic.Interface, error) {
 // RedisFailoverStore implements InstanceStore using RedisFailover CRs (Spotahome Redis operator).
 // All instance operations go through the dynamic client; the operator handles the actual Redis/Sentinel workloads.
 type RedisFailoverStore struct {
-	client             dynamic.Interface
-	namespace          string
-	templatePath       string
+	client              dynamic.Interface
+	namespace           string
+	templatePath        string
 	defaultStorageClass string
 }
 
@@ -89,10 +108,43 @@ func NewRedisFailoverStore(client dynamic.Interface, namespace, templatePath, de
 	}
 }
 
+// EnsureNamespace creates the namespace if it does not exist (for per-user tenant namespaces).
+func (s *RedisFailoverStore) EnsureNamespace(ctx context.Context, ns string) error {
+	if ns == "" {
+		return fmt.Errorf("namespace is required")
+	}
+	nsClient := s.client.Resource(gvrNamespaces)
+	_, err := nsClient.Get(ctx, ns, metav1.GetOptions{})
+	if err == nil {
+		return nil
+	}
+	if !k8serrors.IsNotFound(err) {
+		return fmt.Errorf("get namespace %q: %w", ns, err)
+	}
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Namespace",
+			"metadata": map[string]interface{}{
+				"name": ns,
+			},
+		},
+	}
+	_, err = nsClient.Create(ctx, obj, metav1.CreateOptions{})
+	if err != nil {
+		return fmt.Errorf("create namespace %q: %w", ns, err)
+	}
+	return nil
+}
+
 // ListInstances returns all RedisFailover CRs in the store's namespace.
 // If a CR has no status (e.g. Spotahome operator), status is inferred from that instance's pods.
 func (s *RedisFailoverStore) ListInstances(ctx context.Context) ([]models.RedisInstance, error) {
-	list, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).List(ctx, metav1.ListOptions{})
+	ns := namespaceFromContext(ctx, s.namespace)
+	if err := s.EnsureNamespace(ctx, ns); err != nil {
+		return nil, fmt.Errorf("ensure namespace: %w", err)
+	}
+	list, err := s.client.Resource(gvrRedisFailover).Namespace(ns).List(ctx, metav1.ListOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("list redisfailovers: %w", err)
 	}
@@ -113,7 +165,8 @@ func (s *RedisFailoverStore) ListInstances(ctx context.Context) ([]models.RedisI
 // GetInstance returns a single RedisFailover by name (id). Returns ErrNotFound if the CR does not exist.
 // If the CR has no status (e.g. Spotahome operator), status is inferred from the instance's pods.
 func (s *RedisFailoverStore) GetInstance(ctx context.Context, id string) (*models.RedisInstance, error) {
-	obj, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Get(ctx, id, metav1.GetOptions{})
+	ns := namespaceFromContext(ctx, s.namespace)
+	obj, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
@@ -139,7 +192,11 @@ func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.Crea
 	if err := ValidateCreateRedisRequest(req); err != nil {
 		return nil, fmt.Errorf("validation: %w", err)
 	}
-	data := BuildRedisFailoverTemplateData(req, s.namespace, s.defaultStorageClass)
+	ns := namespaceFromContext(ctx, s.namespace)
+	if err := s.EnsureNamespace(ctx, ns); err != nil {
+		return nil, fmt.Errorf("ensure namespace: %w", err)
+	}
+	data := BuildRedisFailoverTemplateData(req, ns, s.defaultStorageClass)
 	yamlBytes, err := RenderRedisFailoverTemplate(s.templatePath, data)
 	if err != nil {
 		return nil, fmt.Errorf("render template: %w", err)
@@ -148,11 +205,11 @@ func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.Crea
 	if err != nil {
 		return nil, fmt.Errorf("decode yaml: %w", err)
 	}
-	obj.SetNamespace(s.namespace)
+	obj.SetNamespace(ns)
 	gv := schema.GroupVersion{Group: gvrRedisFailover.Group, Version: gvrRedisFailover.Version}
 	obj.SetAPIVersion(gv.String())
 	obj.SetKind("RedisFailover")
-	created, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Create(ctx, obj, metav1.CreateOptions{})
+	created, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Create(ctx, obj, metav1.CreateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("create redisfailover: %w", err)
 	}
@@ -168,7 +225,8 @@ func (s *RedisFailoverStore) UpdateInstanceCapacity(ctx context.Context, id stri
 	if err := ValidateUpdateInstanceCapacityRequest(req); err != nil {
 		return nil, fmt.Errorf("validation: %w", err)
 	}
-	obj, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Get(ctx, id, metav1.GetOptions{})
+	ns := namespaceFromContext(ctx, s.namespace)
+	obj, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Get(ctx, id, metav1.GetOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
@@ -184,7 +242,7 @@ func (s *RedisFailoverStore) UpdateInstanceCapacity(ctx context.Context, id stri
 			return nil, fmt.Errorf("set storageClassName: %w", err)
 		}
 	}
-	updated, err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Update(ctx, obj, metav1.UpdateOptions{})
+	updated, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Update(ctx, obj, metav1.UpdateOptions{})
 	if err != nil {
 		return nil, fmt.Errorf("update redisfailover %q: %w", id, err)
 	}
@@ -196,7 +254,8 @@ func (s *RedisFailoverStore) UpdateInstanceCapacity(ctx context.Context, id stri
 // DeleteInstance deletes the RedisFailover CR; the operator cleans up the underlying resources.
 // Returns ErrNotFound if the CR does not exist.
 func (s *RedisFailoverStore) DeleteInstance(ctx context.Context, id string) error {
-	if err := s.client.Resource(gvrRedisFailover).Namespace(s.namespace).Delete(ctx, id, metav1.DeleteOptions{}); err != nil {
+	ns := namespaceFromContext(ctx, s.namespace)
+	if err := s.client.Resource(gvrRedisFailover).Namespace(ns).Delete(ctx, id, metav1.DeleteOptions{}); err != nil {
 		if k8serrors.IsNotFound(err) {
 			return fmt.Errorf("%w: %s", ErrNotFound, id)
 		}
@@ -207,6 +266,9 @@ func (s *RedisFailoverStore) DeleteInstance(ctx context.Context, id string) erro
 
 // gvrPods is used to infer instance status from pod phases when the CR has no status (e.g. Spotahome operator).
 var gvrPods = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "pods"}
+
+// gvrNamespaces is used to ensure a tenant namespace exists before use.
+var gvrNamespaces = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}
 
 // redisfailoverToModel maps a RedisFailover CR to the API RedisInstance model.
 // Status is read from status.phase, status.state, or status.status; if none set, remains "unknown".
@@ -246,7 +308,7 @@ func (s *RedisFailoverStore) attachConnectionInfo(ctx context.Context, inst *mod
 	if inst == nil {
 		return
 	}
-	ns := s.namespace
+	ns := inst.Namespace
 	if ns == "" {
 		ns = "default"
 	}
@@ -274,7 +336,8 @@ func splitPath(path string) []string {
 // inferStatusFromPods infers instance status from pod phases when the RedisFailover CR has no status.
 // Lists pods with label app.kubernetes.io/instance=<name> (Spotahome operator convention).
 func (s *RedisFailoverStore) inferStatusFromPods(ctx context.Context, name string) string {
-	list, err := s.client.Resource(gvrPods).Namespace(s.namespace).List(ctx, metav1.ListOptions{
+	ns := namespaceFromContext(ctx, s.namespace)
+	list, err := s.client.Resource(gvrPods).Namespace(ns).List(ctx, metav1.ListOptions{
 		LabelSelector: "app.kubernetes.io/instance=" + name,
 	})
 	if err != nil || len(list.Items) == 0 {

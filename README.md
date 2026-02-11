@@ -106,14 +106,14 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 - [x] **API Development for Product Instances**: Development of a RESTful API that provides the following functions: creation, deletion, and listing of PaaS product instances, as well as retrieval of the associated connection and access data.
     - [x] API Specification: The functionality of the API must be documented in the form of OpenAPI specifications
 - [x] **Unit Tests:** Implementation of simple Unit Tests for each endpoint of the developed API
-- [ ] **Docker Container Image** for the API creation, upload to the STACKIT Container Registry, and provisioning of the API via SKE
+- [x] **Docker Container Image** for the API creation, upload to the STACKIT Container Registry, and provisioning of the API via SKE
 - [ ] **Understanding the Creation Process (Create Flow):**
     - [ ] * **Flowchart for the creation of a product instance:** Visualization of the individual steps
     - [ ] * **Basic understanding of how a RESTful API works**
 
 ### Bonus
 
-- [ ] **Automated API Deployment**: Integration of the deployment of the RESTful API into the existing GitOps infrastructure
+- [x] **Automated API Deployment**: Integration of the deployment of the RESTful API into the existing GitOps infrastructure
 - [ ] **Auto-Scaling and Performance Tests**:
     - [ ] * **Horizontal Pod Autoscaler (HPA):** Configuration of the Kubernetes HPA for automatic scaling of the Control Plane RESTful API
     - [ ] * **Performance Tests**: Implementation of performance tests for the RESTful API to verify the functionality of the HPA

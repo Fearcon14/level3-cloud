@@ -71,7 +71,7 @@ func (a *Application) CreateInstance(c *echo.Context) error {
 	instance, err := a.Store.CreateInstance(ctx, req)
 	if err != nil {
 		a.Logger.Error("failed to create instance", "error", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Errorf("failed to create instance").Error()})
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("failed to create instance: %v", err)})
 	}
 	return c.JSON(http.StatusCreated, instance)
 }

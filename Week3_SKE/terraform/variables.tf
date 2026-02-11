@@ -29,3 +29,15 @@ variable "kubernetes_version" {
 	default     = null
 }
 
+variable "git_repo_url" {
+	description = "Git repository URL for Argo CD Applications (e.g. your fork with Week3_SKE and Week4_API)"
+	type        = string
+	default     = "https://github.com/Fearcon14/level3-cloud.git"
+}
+
+variable "git_revision" {
+	description = "Git branch or tag for Argo CD to sync"
+	type        = string
+	default     = "main"
+}
+

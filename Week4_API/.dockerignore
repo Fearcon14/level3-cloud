@@ -1,0 +1,28 @@
+# Git and IDE
+.git
+.gitignore
+*.md
+.cursor
+.idea
+.vscode
+
+# Build artifacts and local binaries
+api
+*.exe
+bin/
+
+# Test and coverage
+*_test.go
+coverage.out
+*.test
+
+# Docs only (not needed in image)
+docs/
+
+# Kubernetes manifests (deploy separately)
+API/
+
+# Avoid copying large or unnecessary files
+*.log
+tmp/
+temp/

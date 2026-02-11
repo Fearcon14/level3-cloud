@@ -60,9 +60,77 @@ resource "kubernetes_manifest" "argocd_redis_operator_app" {
     spec = {
       project = "default"
       source = {
-        repoURL        = "https://github.com/Fearcon14/level3-cloud.git"
-        targetRevision = "main"
+        repoURL        = var.git_repo_url
+        targetRevision = var.git_revision
         path           = "Week3_SKE/kubernetes/spotahome_redis_operator"
+      }
+      destination = {
+        server    = "https://kubernetes.default.svc"
+        namespace = "default"
+      }
+      syncPolicy = {
+        automated = {
+          prune    = true
+          selfHeal = true
+        }
+      }
+    }
+  }
+}
+
+# Argo CD Application for PaaS API RBAC (ServiceAccount, ClusterRole, ClusterRoleBinding).
+resource "kubernetes_manifest" "argocd_api_rbac_app" {
+  depends_on = [
+    helm_release.argocd,
+  ]
+
+  manifest = {
+    apiVersion = "argoproj.io/v1alpha1"
+    kind       = "Application"
+    metadata = {
+      name      = "api-rbac"
+      namespace = "argocd"
+    }
+    spec = {
+      project = "default"
+      source = {
+        repoURL        = var.git_repo_url
+        targetRevision = var.git_revision
+        path           = "Week3_SKE/kubernetes/rbac"
+      }
+      destination = {
+        server    = "https://kubernetes.default.svc"
+        namespace = "default"
+      }
+      syncPolicy = {
+        automated = {
+          prune    = true
+          selfHeal = true
+        }
+      }
+    }
+  }
+}
+
+# Argo CD Application for PaaS API Deployment and Service.
+resource "kubernetes_manifest" "argocd_paas_api_app" {
+  depends_on = [
+    helm_release.argocd,
+  ]
+
+  manifest = {
+    apiVersion = "argoproj.io/v1alpha1"
+    kind       = "Application"
+    metadata = {
+      name      = "paas-api"
+      namespace = "argocd"
+    }
+    spec = {
+      project = "default"
+      source = {
+        repoURL        = var.git_repo_url
+        targetRevision = var.git_revision
+        path           = "Week4_API/API"
       }
       destination = {
         server    = "https://kubernetes.default.svc"

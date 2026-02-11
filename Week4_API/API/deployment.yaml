@@ -1,0 +1,55 @@
+# Deployment for the PaaS API. Image from STACKIT Container Registry (https://registry.onstackit.cloud).
+# If the registry is private, create a pull secret and set imagePullSecrets (see README).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: paas-api
+  labels:
+    app: paas-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: paas-api
+  template:
+    metadata:
+      labels:
+        app: paas-api
+    spec:
+      serviceAccountName: paas-api
+      imagePullSecrets:
+        - name: stackit-registry
+      containers:
+        - name: api
+          image: registry.onstackit.cloud/kevin-sinn/paas-api:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: API_LISTEN_ADDR
+              value: ":8080"
+            # When running in-cluster, KUBECONFIG is not set; in-cluster config is used.
+            # - name: PAAS_NAMESPACE
+            #   value: "default"
+            # - name: PAAS_DEFAULT_STORAGE_CLASS
+            #   value: "premium-perf1-stackit"
+          resources:
+            requests:
+              memory: "64Mi"
+              cpu: "50m"
+            limits:
+              memory: "256Mi"
+              cpu: "500m"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: paas-api
+  labels:
+    app: paas-api
+spec:
+  selector:
+    app: paas-api
+  ports:
+    - port: 80
+      targetPort: 8080
+  type: ClusterIP

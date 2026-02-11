@@ -16,6 +16,8 @@ paths:
       operationId: listInstances
       tags:
         - Instances
+      parameters:
+        - $ref: '#/components/parameters/XUser'
       responses:
         '200':
           description: List of Redis instances
@@ -36,6 +38,8 @@ paths:
       operationId: createInstance
       tags:
         - Instances
+      parameters:
+        - $ref: '#/components/parameters/XUser'
       requestBody:
         required: true
         content:
@@ -69,6 +73,7 @@ paths:
       tags:
         - Instances
       parameters:
+        - $ref: '#/components/parameters/XUser'
         - name: id
           in: path
           required: true
@@ -100,6 +105,7 @@ paths:
       tags:
         - Instances
       parameters:
+        - $ref: '#/components/parameters/XUser'
         - name: id
           in: path
           required: true
@@ -129,6 +135,7 @@ paths:
       tags:
         - Instances
       parameters:
+        - $ref: '#/components/parameters/XUser'
         - name: id
           in: path
           required: true
@@ -168,6 +175,18 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
 components:
+  parameters:
+    XUser:
+      name: X-User
+      in: header
+      required: true
+      description: >
+        Logical user / tenant identifier. The API maps this value to a
+        Kubernetes namespace (e.g. "alice" -> "tenant-alice") and performs
+        all operations in that namespace.
+      schema:
+        type: string
+
   schemas:
     RedisInstance:
       type: object

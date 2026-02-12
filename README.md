@@ -114,9 +114,9 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 ### Bonus
 
 - [x] **Automated API Deployment**: Integration of the deployment of the RESTful API into the existing GitOps infrastructure
-- [ ] **Auto-Scaling and Performance Tests**:
-    - [ ] * **Horizontal Pod Autoscaler (HPA):** Configuration of the Kubernetes HPA for automatic scaling of the Control Plane RESTful API
-    - [ ] * **Performance Tests**: Implementation of performance tests for the RESTful API to verify the functionality of the HPA
+- [x] **Auto-Scaling and Performance Tests**:
+    - [x] * **Horizontal Pod Autoscaler (HPA):** Configuration of the Kubernetes HPA for automatic scaling of the Control Plane RESTful API
+    - [x] * **Performance Tests**: Implementation of performance tests for the RESTful API to verify the functionality of the HPA
 - [ ] **Update Functionality**: Implementation and testing of an API endpoint that allows the updating of access data and details of the product instance
 
 

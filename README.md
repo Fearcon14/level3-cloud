@@ -99,7 +99,7 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ### Goal
 
-- [ ] Expose the PaaS product through a clean, production-ready RESTful API to enable automated provisioning and seamless integration.
+- [x] Expose the PaaS product through a clean, production-ready RESTful API to enable automated provisioning and seamless integration.
 
 ### Scope
 
@@ -107,9 +107,9 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
     - [x] API Specification: The functionality of the API must be documented in the form of OpenAPI specifications
 - [x] **Unit Tests:** Implementation of simple Unit Tests for each endpoint of the developed API
 - [x] **Docker Container Image** for the API creation, upload to the STACKIT Container Registry, and provisioning of the API via SKE
-- [ ] **Understanding the Creation Process (Create Flow):**
-    - [ ] * **Flowchart for the creation of a product instance:** Visualization of the individual steps
-    - [ ] * **Basic understanding of how a RESTful API works**
+- [x] **Understanding the Creation Process (Create Flow):**
+    - [x] * **Flowchart for the creation of a product instance:** Visualization of the individual steps
+    - [x] * **Basic understanding of how a RESTful API works**
 
 ### Bonus
 

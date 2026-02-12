@@ -7,7 +7,7 @@ metadata:
   labels:
     app: paas-api
 spec:
-  replicas: 1
+  # replicas: 1 now handled by the HPA
   selector:
     matchLabels:
       app: paas-api

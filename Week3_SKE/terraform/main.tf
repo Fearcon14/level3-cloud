@@ -38,10 +38,6 @@ resource "helm_release" "argocd" {
   chart            = "argo-cd"
   namespace        = "argocd"
   create_namespace = true
-
-  depends_on = [
-    local_sensitive_file.kubeconfig,
-  ]
 }
 
 # Ingress controller: one LoadBalancer for all HTTP traffic; routes via Ingress resources.

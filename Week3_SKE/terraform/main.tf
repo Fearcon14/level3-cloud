@@ -56,10 +56,6 @@ resource "helm_release" "ingress_nginx" {
     name  = "controller.service.type"
     value = "LoadBalancer"
   }
-
-  depends_on = [
-    local_sensitive_file.kubeconfig,
-  ]
 }
 
 # Argo CD Application that points to this repo's Redis operator manifests.

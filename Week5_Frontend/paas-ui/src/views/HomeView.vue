@@ -1,7 +1,9 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 import axios from 'axios'
+import { useUserStore } from '@/stores/user'
 
+const userStore = useUserStore()
 const instances = ref([])
 const loading = ref(true)
 const error = ref(null)
@@ -10,7 +12,7 @@ const fetchInstances = async () => {
   try {
     const response = await axios.get('/api/v1/instances', {
       headers: {
-        'X-User': 'kevin'
+        'X-User': userStore.username
       }
     })
     instances.value = response.data

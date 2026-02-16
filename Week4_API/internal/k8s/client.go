@@ -3,6 +3,7 @@ package k8s
 import (
 	"context"
 	"crypto/rand"
+	"encoding/base64"
 	"encoding/hex"
 	"errors"
 	"fmt"
@@ -180,6 +181,23 @@ func (s *RedisFailoverStore) GetInstance(ctx context.Context, id string) (*model
 		inst.Status = s.inferStatusFromPods(ctx, id)
 	}
 	s.attachConnectionInfo(ctx, inst)
+
+	// Fetch password from secret
+	secretName := id + "-auth"
+	secretObj, err := s.client.Resource(gvrSecrets).Namespace(ns).Get(ctx, secretName, metav1.GetOptions{})
+	if err == nil {
+		if data, found, _ := unstructured.NestedStringMap(secretObj.Object, "data"); found {
+			if encoded, ok := data["password"]; ok {
+				decoded, _ := base64.StdEncoding.DecodeString(encoded)
+				inst.Password = string(decoded)
+			}
+		} else if stringData, found, _ := unstructured.NestedStringMap(secretObj.Object, "stringData"); found {
+			if pwd, ok := stringData["password"]; ok {
+				inst.Password = pwd
+			}
+		}
+	}
+
 	return inst, nil
 }
 
@@ -364,7 +382,7 @@ func (s *RedisFailoverStore) attachConnectionInfo(ctx context.Context, inst *mod
 	if ns == "" {
 		ns = "default"
 	}
-	svcName := "rfrm-" + inst.Name + "-redis"
+	svcName := "rfrm-" + inst.Name
 	inst.PublicServiceName = svcName
 	inst.PublicPort = 6379
 	inst.PublicHostname = fmt.Sprintf("%s.%s.svc.cluster.local", svcName, ns)

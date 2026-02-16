@@ -1,6 +1,7 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import HomeView from '../views/HomeView.vue'
 import LoginView from '../views/LoginView.vue'
+import InstanceDetailView from '../views/InstanceDetailView.vue'
 import { useUserStore } from '@/stores/user'
 
 const router = createRouter({
@@ -10,6 +11,12 @@ const router = createRouter({
       path: '/',
       name: 'home',
       component: HomeView,
+      meta: { requiresAuth: true }
+    },
+    {
+      path: '/instances/:id',
+      name: 'instance-detail',
+      component: InstanceDetailView,
       meta: { requiresAuth: true }
     },
     {

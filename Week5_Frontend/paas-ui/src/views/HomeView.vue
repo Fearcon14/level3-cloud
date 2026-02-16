@@ -1,10 +1,12 @@
 <script setup>
 import { ref, onMounted, reactive } from 'vue'
+import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { Modal } from 'bootstrap'
 import { useUserStore } from '@/stores/user'
 
 const userStore = useUserStore()
+const router = useRouter()
 const instances = ref([])
 const loading = ref(true)
 const error = ref(null)
@@ -137,7 +139,7 @@ onMounted(() => {
               <strong>Capacity:</strong> {{ instance.capacity }}<br>
               <strong>Namespace:</strong> {{ instance.namespace }}
             </p>
-            <button class="btn btn-outline-primary btn-sm">Manage</button>
+            <button class="btn btn-outline-primary btn-sm" @click="router.push({ name: 'instance-detail', params: { id: instance.id } })">Manage</button>
             <button class="btn btn-outline-danger btn-sm float-end ms-2" @click="deleteInstance(instance)">
               <i class="bi bi-trash"></i> Delete
             </button>

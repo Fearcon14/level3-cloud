@@ -2,6 +2,8 @@ package k8s
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"strings"
@@ -181,6 +183,35 @@ func (s *RedisFailoverStore) GetInstance(ctx context.Context, id string) (*model
 	return inst, nil
 }
 
+// generatePassword generates a random hex string for the password.
+func generatePassword() (string, error) {
+	b := make([]byte, passwordLength)
+	if _, err := rand.Read(b); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(b), nil
+}
+
+// createSecret creates a Secret with the given password in stringData.
+func (s *RedisFailoverStore) createSecret(ctx context.Context, ns, name, password string) error {
+	obj := &unstructured.Unstructured{
+		Object: map[string]interface{}{
+			"apiVersion": "v1",
+			"kind":       "Secret",
+			"metadata": map[string]interface{}{
+				"name":      name,
+				"namespace": ns,
+			},
+			"stringData": map[string]interface{}{
+				"password": password,
+			},
+			"type": "Opaque",
+		},
+	}
+	_, err := s.client.Resource(gvrSecrets).Namespace(ns).Create(ctx, obj, metav1.CreateOptions{})
+	return err
+}
+
 // CreateInstance implements template → create: validate request, render RedisFailover from template, decode YAML, then create CR via dynamic client.
 func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error) {
 	if req.Name == "" {
@@ -196,7 +227,18 @@ func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.Crea
 	if err := s.EnsureNamespace(ctx, ns); err != nil {
 		return nil, fmt.Errorf("ensure namespace: %w", err)
 	}
-	data := BuildRedisFailoverTemplateData(req, ns, s.defaultStorageClass)
+
+	// Generate and create password secret
+	password, err := generatePassword()
+	if err != nil {
+		return nil, fmt.Errorf("generate password: %w", err)
+	}
+	secretName := req.Name + "-auth"
+	if err := s.createSecret(ctx, ns, secretName, password); err != nil {
+		return nil, fmt.Errorf("create secret: %w", err)
+	}
+
+	data := BuildRedisFailoverTemplateData(req, ns, s.defaultStorageClass, secretName)
 	yamlBytes, err := RenderRedisFailoverTemplate(s.templatePath, data)
 	if err != nil {
 		return nil, fmt.Errorf("render template: %w", err)
@@ -216,6 +258,7 @@ func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.Crea
 
 	inst := redisfailoverToModel(created)
 	s.attachConnectionInfo(ctx, inst)
+	inst.Password = password
 	return inst, nil
 }
 
@@ -261,6 +304,8 @@ func (s *RedisFailoverStore) DeleteInstance(ctx context.Context, id string) erro
 		}
 		return fmt.Errorf("delete redisfailover %q: %w", id, err)
 	}
+
+	_ = s.client.Resource(gvrSecrets).Namespace(ns).Delete(ctx, id+"-auth", metav1.DeleteOptions{})
 	return nil
 }
 
@@ -269,6 +314,13 @@ var gvrPods = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "p
 
 // gvrNamespaces is used to ensure a tenant namespace exists before use.
 var gvrNamespaces = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "namespaces"}
+
+// gvrSecrets is used to create and delete the secret containing the Redis password.
+var gvrSecrets = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
+
+const (
+	passwordLength = 16
+)
 
 // redisfailoverToModel maps a RedisFailover CR to the API RedisInstance model.
 // Status is read from status.phase, status.state, or status.status; if none set, remains "unknown".

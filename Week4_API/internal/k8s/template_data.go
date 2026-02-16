@@ -19,6 +19,7 @@ type RedisFailoverTemplateData struct {
 	MemoryLimit      string
 	StorageClass     string
 	StorageSize      string
+	SecretName       string
 }
 
 const (
@@ -88,7 +89,7 @@ func ValidateUpdateInstanceCapacityRequest(req models.UpdateInstanceCapacityRequ
 
 // BuildRedisFailoverTemplateData builds template data from the API request, default namespace, and optional default storage class from config.
 // Optional request fields use defaults when not set. cfgDefaultStorageClass is used when req.StorageClass is empty; if empty, package default is used.
-func BuildRedisFailoverTemplateData(req models.CreateRedisRequest, defaultNamespace, cfgDefaultStorageClass string) RedisFailoverTemplateData {
+func BuildRedisFailoverTemplateData(req models.CreateRedisRequest, defaultNamespace, cfgDefaultStorageClass, secretName string) RedisFailoverTemplateData {
 	storageClass := cfgDefaultStorageClass
 	if storageClass == "" {
 		storageClass = defaultStorageClass
@@ -108,6 +109,7 @@ func BuildRedisFailoverTemplateData(req models.CreateRedisRequest, defaultNamesp
 		MemoryLimit:      defaultMemoryLimit,
 		StorageClass:     storageClass,
 		StorageSize:      defaultStorageSize,
+		SecretName:       secretName,
 	}
 	if defaultNamespace == "" {
 		data.Namespace = "default"

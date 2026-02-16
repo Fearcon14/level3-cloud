@@ -4,6 +4,8 @@ metadata:
   name: {{ .Name }}
   namespace: {{ .Namespace }}
 spec:
+  auth:
+    secretPath: {{ .SecretName }}
   sentinel:
     replicas: {{ or .SentinelReplicas 3 }}
   redis:

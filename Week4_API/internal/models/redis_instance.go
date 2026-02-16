@@ -16,6 +16,7 @@ type RedisInstance struct {
 	PublicHostname    string `json:"publicHostname"`    // e.g. "<name>-redis.default.svc.cluster.local"
 	PublicPort        int    `json:"publicPort"`        // 6379
 	PublicEndpoint    string `json:"publicEndpoint"`    // host:port for Redis clients
+	Password          string `json:"password,omitempty"` // Password for Redis authentication
 }
 
 // CreateRedisRequest is the body for POST /instances

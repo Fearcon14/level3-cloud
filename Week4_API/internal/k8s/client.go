@@ -407,9 +407,18 @@ func splitPath(path string) []string {
 // Lists pods with label app.kubernetes.io/instance=<name> (Spotahome operator convention).
 func (s *RedisFailoverStore) inferStatusFromPods(ctx context.Context, name string) string {
 	ns := namespaceFromContext(ctx, s.namespace)
+
 	list, err := s.client.Resource(gvrPods).Namespace(ns).List(ctx, metav1.ListOptions{
-		LabelSelector: "app.kubernetes.io/instance=" + name,
+		LabelSelector: fmt.Sprintf("redisfailovers.databases.spotahome.com/name=%s", name),
 	})
+
+	// If no pods found
+	if err != nil || len(list.Items) == 0 {
+		list, err = s.client.Resource(gvrPods).Namespace(ns).List(ctx, metav1.ListOptions{
+			LabelSelector: "app.kubernetes.io/instance=" + name,
+		})
+	}
+
 	if err != nil || len(list.Items) == 0 {
 		return "unknown"
 	}
@@ -417,7 +426,25 @@ func (s *RedisFailoverStore) inferStatusFromPods(ctx context.Context, name strin
 	hasRunning := false
 	hasFailed := false
 	for i := range list.Items {
+		// status.phase is top-level for pods
 		phase, _, _ := unstructured.NestedString(list.Items[i].Object, "status", "phase")
+
+		// If phase is empty, check container statuses
+		if phase == "" {
+			containerStatuses, found, _ := unstructured.NestedSlice(list.Items[i].Object, "status", "containerStatuses")
+			if found && len(containerStatuses) > 0 {
+				// Assume running if at least one container is running
+				for _, cs := range containerStatuses {
+					if statusMap, ok := cs.(map[string]interface{}); ok {
+						if _, running := statusMap["state"].(map[string]interface{})["running"]; running {
+							phase = "Running"
+							break
+						}
+					}
+				}
+			}
+		}
+
 		switch phase {
 		case "Running":
 			hasRunning = true

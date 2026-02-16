@@ -122,7 +122,24 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ## Week 5
 
-_To be updated..._
+### Goal
+
+Build a user-facing interface and expose the PaaS product securely via the web, ensuring a smooth and accessible developer experience.
+
+### Scope
+
+- [ ] **Development of a user-friendly Web UI** with Vue.js or similar for interaction with the PaaS product, covering all relevant functions of the API
+- [ ] **Implementation of secure communication** between UI and backend APIs using JWT (JSON Web Tokens) or similar
+- [ ] **Deployment of Ingress controller** on SKE cluster
+- [ ] **Publication of the API and Web UI** on SKE cluster with SSL and free STACKIT subdomain URL
+- [ ] **Adaptation of the architecture diagram** to illustrate the traffic flow with API, Web UI, and Ingress
+
+### Bonus
+
+- [ ] **Automated Deployment** of the Web UI on the existing SKE via GitOps integration
+- [ ] **Implementation of E2E tests** (e.g., with Cypress or Playwright) for the Web UI and the RESTful API
+
+## Week 6 –  Implementation of Observability and Audit Logging
 
 ## Week 6
 

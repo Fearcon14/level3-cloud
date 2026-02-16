@@ -26,3 +26,5 @@ terraform-provider-stackit/**/*
 
 *.pem
 *.json
+
+.vscode/

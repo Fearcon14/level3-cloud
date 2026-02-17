@@ -5,8 +5,10 @@ import (
 )
 
 func RegisterRoutes(e *echo.Echo, app *Application) {
-	e.POST("/login", app.Login)
+	// Public Routes
+	e.POST("/api/login", app.Login)
 
+	// Protected Routes
 	v1 := e.Group("/api/v1")
 	v1.Use(JWTMiddleware)
 

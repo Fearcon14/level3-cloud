@@ -3,9 +3,7 @@ import { ref, onMounted, reactive } from 'vue'
 import { useRouter } from 'vue-router'
 import axios from 'axios'
 import { Modal } from 'bootstrap'
-import { useUserStore } from '@/stores/user'
 
-const userStore = useUserStore()
 const router = useRouter()
 const instances = ref([])
 const loading = ref(true)
@@ -24,11 +22,7 @@ const newInstance = reactive({
 
 const fetchInstances = async () => {
   try {
-    const response = await axios.get('/api/v1/instances', {
-      headers: {
-        'X-User': userStore.username
-      }
-    })
+    const response = await axios.get('/api/v1/instances')
     instances.value = response.data || []
     loading.value = false
   } catch (err) {
@@ -55,11 +49,7 @@ const createInstance = async () => {
       name: newInstance.name.toLowerCase()
     }
 
-    await axios.post('/api/v1/instances', payload, {
-      headers: {
-        'X-User': userStore.username
-      }
-    })
+    await axios.post('/api/v1/instances', payload)
 
     modalInstance.hide()
     await fetchInstances()
@@ -76,11 +66,7 @@ const deleteInstance = async (instance) => {
   }
 
   try {
-    await axios.delete(`/api/v1/instances/${instance.id}`, {
-      headers: {
-        'X-User': userStore.username
-      }
-    })
+    await axios.delete(`/api/v1/instances/${instance.id}`)
     await fetchInstances()
   } catch (err) {
     alert('Failed to delete instance: ' + (err.response?.data?.error || err.message))

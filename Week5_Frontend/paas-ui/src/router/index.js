@@ -38,7 +38,7 @@ const router = createRouter({
 router.beforeEach((to, from) => {
   const userStore = useUserStore()
 
-  if (to.meta.requiresAuth && !userStore.username) {
+  if (to.meta.requiresAuth && !userStore.token) {
     return '/login'
   }
 })

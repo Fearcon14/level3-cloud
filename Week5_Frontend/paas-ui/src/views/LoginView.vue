@@ -4,17 +4,24 @@ import { useRouter } from 'vue-router'
 import { useUserStore } from '@/stores/user'
 
 const username = ref('')
+const password = ref('')
 const error = ref('')
 const router = useRouter()
 const userStore = useUserStore()
 
-const handleLogin = () => {
-  // Simple "Hardcoded" Auth Check
-  if (username.value === 'kevin') {
-    userStore.login(username.value)
-    router.push('/') // Redirect to Dashboard
-  } else {
-    error.value = 'Invalid user. Try "kevin".'
+const handleLogin = async () => {
+  error.value = ''
+  try {
+    const success = await userStore.login(username.value, password.value)
+    if (success) {
+      router.push('/')
+    }
+  } catch (err) {
+    if (err.response && err.response.status === 401) {
+      error.value = 'Invalid username or password.'
+    } else {
+      error.value = 'An error occurred during login.'
+    }
   }
 }
 </script>
@@ -34,6 +41,16 @@ const handleLogin = () => {
                   type="text"
                   class="form-control"
                   id="username"
+                  required
+                >
+              </div>
+              <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input
+                  v-model="password"
+                  type="password"
+                  class="form-control"
+                  id="password"
                   required
                 >
               </div>

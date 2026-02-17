@@ -13,7 +13,7 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		// Get Token from Header
 		authHeader := c.Request().Header.Get("Authorization")
 		if !strings.HasPrefix(authHeader, "Bearer ") {
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing or invalid Authorization header"})
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "missing or invalid token"})
 		}
 		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
@@ -22,18 +22,19 @@ func JWTMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
 				return nil, echo.ErrUnauthorized
 			}
-			// TODO: Load secret from env
-			return []byte("kevins-super-sercret-key"), nil
+			// TODO: Load secret from config/env
+			return []byte("kevins-super-secret-key"), nil
 		})
 
 		if err != nil || !token.Valid {
-			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid or expired token"})
+			return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid token"})
 		}
 
 		// Extract claims and set user
 		if claims, ok := token.Claims.(jwt.MapClaims); ok {
-			username := claims["sub"].(string)
-			c.Request().Header.Set("X-User", username)
+			if sub, ok := claims["sub"].(string); ok {
+				c.Request().Header.Set("X-User", sub)
+			}
 		}
 
 		return next(c)

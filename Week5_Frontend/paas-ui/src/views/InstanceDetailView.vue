@@ -2,11 +2,9 @@
 import { ref, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
-import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
 const router = useRouter()
-const userStore = useUserStore()
 
 const instance = ref(null)
 const loading = ref(true)
@@ -25,11 +23,7 @@ const copyToClipboard = async (text) => {
 const fetchInstance = async () => {
   const instanceId = route.params.id
   try {
-    const response = await axios.get(`/api/v1/instances/${instanceId}`, {
-      headers: {
-        'X-User': userStore.username
-      }
-    })
+    const response = await axios.get(`/api/v1/instances/${instanceId}`)
     instance.value = response.data
     loading.value = false
   } catch (err) {

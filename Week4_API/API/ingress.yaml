@@ -7,8 +7,13 @@ metadata:
   namespace: default
 spec:
   ingressClassName: nginx
+  tls:
+    - hosts:
+      - kevin-sinn.runs.onstackit.cloud
+      secretName: paas-tls
   rules:
-    - http:
+    - host: kevin-sinn.runs.onstackit.cloud
+      http:
         paths:
           # More specific path first: /api -> API backend
           - path: /api

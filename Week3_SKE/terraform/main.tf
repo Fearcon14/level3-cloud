@@ -54,6 +54,48 @@ resource "helm_release" "ingress_nginx" {
   }
 }
 
+# Argo CD Application to install cert-manager via official Helm chart.
+resource "kubernetes_manifest" "argocd_cert_manager_app" {
+  depends_on = [
+    helm_release.argocd,
+  ]
+
+  manifest = {
+    apiVersion = "argoproj.io/v1alpha1"
+    kind       = "Application"
+    metadata = {
+      name      = "cert-manager"
+      namespace = "argocd"
+    }
+    spec = {
+      project = "default"
+      source = {
+        repoURL        = "https://charts.jetstack.io"
+        chart          = "cert-manager"
+        targetRevision = "v1.16.1"
+        helm = {
+          values = <<EOF
+installCRDs: true
+EOF
+        }
+      }
+      destination = {
+        server    = "https://kubernetes.default.svc"
+        namespace = "cert-manager"
+      }
+      syncPolicy = {
+        automated = {
+          prune    = true
+          selfHeal = true
+        }
+        syncOptions = [
+          "CreateNamespace=true",
+        ]
+      }
+    }
+  }
+}
+
 # Argo CD Application that points to this repo's Redis operator manifests.
 resource "kubernetes_manifest" "argocd_redis_operator_app" {
   depends_on = [

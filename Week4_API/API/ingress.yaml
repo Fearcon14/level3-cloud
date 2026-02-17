@@ -8,8 +8,7 @@ metadata:
 spec:
   ingressClassName: nginx
   rules:
-    - host: paas-api
-      http:
+    - http:
         paths:
           # More specific path first: /api -> API backend
           - path: /api

@@ -122,6 +122,8 @@ This week's Notion page contains all the knowledge, notes, and learnings obtaine
 
 ## Week 5
 
+📚 **[Week 5 Notion Page](https://www.notion.so/Week-5-309f7889a83b803aba38c347cbcfa63b?source=copy_link)**
+
 ### Goal
 
 Build a user-facing interface and expose the PaaS product securely via the web, ensuring a smooth and accessible developer experience.

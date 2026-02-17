@@ -6,9 +6,11 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/k8s"
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/models"
+	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v5"
 )
 
@@ -148,4 +150,38 @@ func (a *Application) DeleteInstance(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to delete instance"})
 	}
 	return c.NoContent(http.StatusNoContent)
+}
+
+// Login handles user authentication and issues a JWT
+func (a *Application) Login(c *echo.Context) error {
+	var req models.LoginRequest
+	if err := c.Bind(&req); err != nil {
+		a.Logger.Error("failed to bind request", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+
+	// Hardcoded auth check
+	// TODO: Implement proper auth check
+	if req.Username != "kevin" || req.Password != "KevinsPassword" {
+		return c.JSON(http.StatusUnauthorized, map[string]string{"error": "invalid credentials"})
+	}
+
+	// Create claims
+	claims := jwt.MapClaims{
+		"sub": req.Username,
+		"exp": time.Now().Add(time.Hour * 72).Unix(), // Token expires after 72 hours
+	}
+
+	// Create Token
+	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
+
+	// Sign token with secret
+	// TODO: Load secret from env
+	t, err := token.SignedString([]byte("kevins-super-secret-key"))
+	if err != nil {
+		a.Logger.Error("failed to sign token", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to sign token"})
+	}
+
+	return c.JSON(http.StatusOK, models.LoginResponse{Token: t})
 }

@@ -145,7 +145,7 @@ onMounted(() => {
             <form @submit.prevent="createInstance">
               <div class="mb-3">
                 <label class="form-label">Instance Name</label>
-                <input v-model="newInstance.name" type="text" class="form-control" placeholder="e.g. redis-cache" pattern="[a-z0-9]([-a-z0-9]*[a-z0-9])?" title="Lowercase alphanumeric characters only (e.g. 'my-redis')" required>
+                <input v-model="newInstance.name" type="text" class="form-control" placeholder="e.g. redis-cache" pattern="[a-z0-9]([\-a-z0-9]*[a-z0-9])?" title="Lowercase alphanumeric characters only (e.g. 'my-redis')" required>
                 <div class="form-text">Lowercase alphanumeric characters only (e.g. 'my-redis')</div>
               </div>
               <div class="mb-3">

@@ -67,3 +67,28 @@ npm run test:e2e -- --debug
 ```sh
 npm run lint
 ```
+
+## Deployment (SKE / Argo CD)
+
+The UI is containerized and deployed via Argo CD. The same ingress host serves the UI at `/` and the API at `/api`, so the frontend uses relative URLs and needs no API base URL in production.
+
+### Build and push image to STACKIT Container Registry
+
+```sh
+# From Week5_Frontend/paas-ui
+docker build --platform linux/amd64 -t registry.onstackit.cloud/kevin-sinn/paas-ui:latest .
+docker push registry.onstackit.cloud/kevin-sinn/paas-ui:latest
+```
+
+Ensure you are logged in to the registry (e.g. `docker login registry.onstackit.cloud`) and that the `stackit-registry` image pull secret exists in the cluster (same as for the API).
+
+### Local development and API backend
+
+For local dev, API requests are proxied by Vite. By default the proxy target is `http://localhost:8080`. To point at your cluster’s API (e.g. LoadBalancer IP), set:
+
+```sh
+export VITE_API_PROXY_TARGET=http://<YOUR_LB_IP>
+npm run dev
+```
+
+See `.env.development.example` for an example.

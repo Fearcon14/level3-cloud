@@ -156,3 +156,37 @@ resource "kubernetes_manifest" "argocd_paas_api_app" {
   }
 }
 
+# Argo CD Application for PaaS Web UI (Deployment and Service).
+resource "kubernetes_manifest" "argocd_paas_ui_app" {
+  depends_on = [
+    helm_release.argocd,
+  ]
+
+  manifest = {
+    apiVersion = "argoproj.io/v1alpha1"
+    kind       = "Application"
+    metadata = {
+      name      = "paas-ui"
+      namespace = "argocd"
+    }
+    spec = {
+      project = "default"
+      source = {
+        repoURL        = var.git_repo_url
+        targetRevision = var.git_revision
+        path           = "Week5_Frontend/paas-ui/k8s"
+      }
+      destination = {
+        server    = "https://kubernetes.default.svc"
+        namespace = "default"
+      }
+      syncPolicy = {
+        automated = {
+          prune    = true
+          selfHeal = true
+        }
+      }
+    }
+  }
+}
+

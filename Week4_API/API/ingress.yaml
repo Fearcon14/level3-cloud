@@ -1,5 +1,5 @@
-# Ingress for PaaS API. Requires ingress-nginx (or another controller with class "nginx").
-# Access via host "paas-api" (add LB IP to /etc/hosts or point DNS).
+# Ingress for PaaS: Web UI at / and API at /api. Requires ingress-nginx (or another controller with class "nginx").
+# Access via host "paas-api" (add LB IP to /etc/hosts or point DNS). Same host serves UI and API.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
@@ -11,10 +11,19 @@ spec:
     - host: paas-api
       http:
         paths:
-          - path: /
+          # More specific path first: /api -> API backend
+          - path: /api
             pathType: Prefix
             backend:
               service:
                 name: paas-api
+                port:
+                  number: 80
+          # Everything else -> Web UI (SPA)
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: paas-ui
                 port:
                   number: 80

@@ -19,12 +19,14 @@ export default defineConfig({
   server: {
     proxy: {
       '/api': {
-        target: 'http://192.214.179.122',
+        // In production, UI and API are behind the same ingress; /api is routed to the API.
+        // For local dev, set VITE_API_PROXY_TARGET (e.g. your cluster LB IP or http://localhost:8080).
+        target: process.env.VITE_API_PROXY_TARGET || 'http://localhost:8080',
         changeOrigin: true,
         secure: false,
-        headers: {
-          'Host': 'paas-api'
-        }
+        headers: process.env.VITE_API_PROXY_TARGET
+          ? { Host: 'paas-api' }
+          : undefined
       }
     }
   }

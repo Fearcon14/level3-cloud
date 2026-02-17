@@ -131,7 +131,7 @@ Build a user-facing interface and expose the PaaS product securely via the web, 
 ### Scope
 
 - [ ] **Development of a user-friendly Web UI** with Vue.js or similar for interaction with the PaaS product, covering all relevant functions of the API
-- [ ] **Implementation of secure communication** between UI and backend APIs using JWT (JSON Web Tokens) or similar
+- [x] **Implementation of secure communication** between UI and backend APIs using JWT (JSON Web Tokens) or similar
 - [ ] **Deployment of Ingress controller** on SKE cluster
 - [ ] **Publication of the API and Web UI** on SKE cluster with SSL and free STACKIT subdomain URL
 - [ ] **Adaptation of the architecture diagram** to illustrate the traffic flow with API, Web UI, and Ingress

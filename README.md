@@ -133,12 +133,12 @@ Build a user-facing interface and expose the PaaS product securely via the web, 
 - [x] **Development of a user-friendly Web UI** with Vue.js or similar for interaction with the PaaS product, covering all relevant functions of the API
 - [x] **Implementation of secure communication** between UI and backend APIs using JWT (JSON Web Tokens) or similar
 - [x] **Deployment of Ingress controller** on SKE cluster
-- [ ] **Publication of the API and Web UI** on SKE cluster with SSL and free STACKIT subdomain URL
+- [x] **Publication of the API and Web UI** on SKE cluster with SSL and free STACKIT subdomain URL
 - [ ] **Adaptation of the architecture diagram** to illustrate the traffic flow with API, Web UI, and Ingress
 
 ### Bonus
 
-- [ ] **Automated Deployment** of the Web UI on the existing SKE via GitOps integration
+- [x] **Automated Deployment** of the Web UI on the existing SKE via GitOps integration
 - [ ] **Implementation of E2E tests** (e.g., with Cypress or Playwright) for the Web UI and the RESTful API
 
 ## Week 6 –  Implementation of Observability and Audit Logging

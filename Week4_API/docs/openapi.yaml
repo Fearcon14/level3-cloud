@@ -127,6 +127,39 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+  /api/v1/instances/{id}/regenerate-password:
+    post:
+      summary: Regenerate the password for a Redis instance
+      operationId: regenerateInstancePassword
+      tags:
+        - Instances
+      parameters:
+        - $ref: '#/components/parameters/XUser'
+        - name: id
+          in: path
+          required: true
+          description: ID (name) of the Redis instance
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Redis instance with new password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RedisInstance'
+        '404':
+          description: Instance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to regenerate password
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
     patch:
       summary: Partially update a Redis instance
       operationId: patchInstance

@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/models"
 
@@ -39,6 +40,7 @@ type InstanceStore interface {
 	GetInstance(ctx context.Context, id string) (*models.RedisInstance, error)
 	CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error)
 	PatchInstance(ctx context.Context, id string, req models.PatchInstanceRequest) (*models.RedisInstance, error)
+	RegenerateInstancePassword(ctx context.Context, id string) (*models.RedisInstance, error)
 	DeleteInstance(ctx context.Context, id string) error
 }
 
@@ -360,6 +362,67 @@ func (s *RedisFailoverStore) PatchInstance(ctx context.Context, id string, req m
 	return inst, nil
 }
 
+// RegenerateInstancePassword generates a new password and updates the instance's auth Secret.
+// Returns the instance with the new password populated. Returns ErrNotFound if the instance or secret does not exist.
+func (s *RedisFailoverStore) RegenerateInstancePassword(ctx context.Context, id string) (*models.RedisInstance, error) {
+	ns := namespaceFromContext(ctx, s.namespace)
+	secretName := id + "-auth"
+	obj, err := s.client.Resource(gvrSecrets).Namespace(ns).Get(ctx, secretName, metav1.GetOptions{})
+	if err != nil {
+		if k8serrors.IsNotFound(err) {
+			return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
+		}
+		return nil, fmt.Errorf("get secret %q: %w", secretName, err)
+	}
+	newPassword, err := generatePassword()
+	if err != nil {
+		return nil, fmt.Errorf("generate password: %w", err)
+	}
+	if err := unstructured.SetNestedStringMap(obj.Object, map[string]string{"password": newPassword}, "stringData"); err != nil {
+		return nil, fmt.Errorf("set secret stringData: %w", err)
+	}
+	if _, err := s.client.Resource(gvrSecrets).Namespace(ns).Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
+		return nil, fmt.Errorf("update secret %q: %w", secretName, err)
+	}
+	// Restart Redis and Sentinel workloads so they pick up the new password from the secret.
+	s.rolloutRestartRedisWorkloads(ctx, ns, id)
+	inst, err := s.GetInstance(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	inst.Password = newPassword
+	return inst, nil
+}
+
+// rolloutRestartRedisWorkloads triggers a rollout restart of the Redis StatefulSet and Sentinel Deployment
+// (Spotahome operator naming: rfr-<name>, rfs-<name>) so pods reload the updated auth secret.
+func (s *RedisFailoverStore) rolloutRestartRedisWorkloads(ctx context.Context, ns, id string) {
+	restartedAt := time.Now().UTC().Format(time.RFC3339)
+	annotationPatch := map[string]string{"kubectl.kubernetes.io/restartedAt": restartedAt}
+	for _, gvr := range []schema.GroupVersionResource{gvrStatefulSets, gvrDeployments} {
+		name := "rfr-" + id
+		if gvr.Resource == "deployments" {
+			name = "rfs-" + id
+		}
+		obj, err := s.client.Resource(gvr).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				continue
+			}
+			continue
+		}
+		annotations, _, _ := unstructured.NestedStringMap(obj.Object, "spec", "template", "metadata", "annotations")
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		for k, v := range annotationPatch {
+			annotations[k] = v
+		}
+		_ = unstructured.SetNestedStringMap(obj.Object, annotations, "spec", "template", "metadata", "annotations")
+		_, _ = s.client.Resource(gvr).Namespace(ns).Update(ctx, obj, metav1.UpdateOptions{})
+	}
+}
+
 // DeleteInstance deletes the RedisFailover CR; the operator cleans up the underlying resources.
 // Returns ErrNotFound if the CR does not exist.
 func (s *RedisFailoverStore) DeleteInstance(ctx context.Context, id string) error {
@@ -383,6 +446,10 @@ var gvrNamespaces = schema.GroupVersionResource{Group: "", Version: "v1", Resour
 
 // gvrSecrets is used to create and delete the secret containing the Redis password.
 var gvrSecrets = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
+
+// gvrStatefulSets and gvrDeployments are used to trigger rollout restart after password regeneration (Spotahome operator naming: rfr-<name>, rfs-<name>).
+var gvrStatefulSets = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
+var gvrDeployments = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
 const (
 	passwordLength = 16

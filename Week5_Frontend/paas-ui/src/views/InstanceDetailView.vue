@@ -3,9 +3,17 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
 import { Modal } from 'bootstrap'
+import { useUserStore } from '@/stores/user'
 
 const route = useRoute()
 const router = useRouter()
+const userStore = useUserStore()
+
+function authHeaders () {
+  const token = userStore.token
+  if (!token) return {}
+  return { Authorization: `Bearer ${token}` }
+}
 
 const instance = ref(null)
 const loading = ref(true)
@@ -53,7 +61,7 @@ const fetchCacheValue = async () => {
   cacheGetResult.value = null
   cacheGetLoading.value = true
   try {
-    const response = await axios.get(`/api/v1/instances/${instance.value.id}/cache/${encodeURIComponent(key)}`)
+    const response = await axios.get(`/api/v1/instances/${instance.value.id}/cache/${encodeURIComponent(key)}`, { headers: authHeaders() })
     cacheGetResult.value = response.data
   } catch (err) {
     cacheGetError.value = err.response?.data?.error ?? err.message ?? 'Failed to get value'
@@ -75,7 +83,7 @@ const setCacheValue = async () => {
   try {
     const payload = { key, value: cacheSetValue.value }
     if (cacheSetTtl.value > 0) payload.ttlSeconds = cacheSetTtl.value
-    await axios.post(`/api/v1/instances/${instance.value.id}/cache`, payload)
+    await axios.post(`/api/v1/instances/${instance.value.id}/cache`, payload, { headers: authHeaders() })
     cacheSetSuccess.value = true
   } catch (err) {
     cacheSetError.value = err.response?.data?.error ?? err.message ?? 'Failed to set value'
@@ -95,7 +103,7 @@ const copyToClipboard = async (text) => {
 const fetchInstance = async () => {
   const instanceId = route.params.id
   try {
-    const response = await axios.get(`/api/v1/instances/${instanceId}`)
+    const response = await axios.get(`/api/v1/instances/${instanceId}`, { headers: authHeaders() })
     instance.value = response.data
     error.value = null
   } catch (err) {
@@ -133,7 +141,7 @@ const submitEdit = async () => {
   }
   isSaving.value = true
   try {
-    await axios.patch(`/api/v1/instances/${instance.value.id}`, payload)
+    await axios.patch(`/api/v1/instances/${instance.value.id}`, payload, { headers: authHeaders() })
     editModalInstance.hide()
     await fetchInstance()
   } catch (err) {

@@ -104,16 +104,19 @@ func (a *Application) CreateInstance(c *echo.Context) error {
 	return c.JSON(http.StatusCreated, instance)
 }
 
-// UpdateInstanceCapacity updates the capacity (and optionally StorageClass) of an existing Redis instance.
-func (a *Application) UpdateInstanceCapacity(c *echo.Context) error {
+// PatchInstance applies a partial update to an existing Redis instance.
+// It can update the display name, Redis replicas, Sentinel replicas, and capacity (PVC size).
+func (a *Application) PatchInstance(c *echo.Context) error {
 	id := c.Param("id")
-	var req models.UpdateInstanceCapacityRequest
+	var req models.PatchInstanceRequest
 	if err := c.Bind(&req); err != nil {
 		a.Logger.Error("failed to bind request", "error", err)
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
 	}
-	if req.Capacity == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "capacity is required"})
+
+	// Basic guard: ensure at least one field is provided.
+	if req.Name == nil && req.Capacity == nil && req.RedisReplicas == nil && req.SentinelReplicas == nil {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "at least one field must be provided"})
 	}
 
 	user := c.Request().Header.Get("X-User")
@@ -122,7 +125,7 @@ func (a *Application) UpdateInstanceCapacity(c *echo.Context) error {
 		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing or empty X-User header"})
 	}
 	ctx := k8s.WithNamespace(c.Request().Context(), ns)
-	updated, err := a.Store.UpdateInstanceCapacity(ctx, id, req)
+	updated, err := a.Store.PatchInstance(ctx, id, req)
 	if err != nil {
 		if errors.Is(err, k8s.ErrNotFound) {
 			return c.JSON(http.StatusNotFound, map[string]string{"error": "instance not found"})

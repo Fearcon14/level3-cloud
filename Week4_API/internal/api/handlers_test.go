@@ -21,7 +21,7 @@ type mockStore struct {
 	ListInstancesFn          func(ctx context.Context) ([]models.RedisInstance, error)
 	GetInstanceFn            func(ctx context.Context, id string) (*models.RedisInstance, error)
 	CreateInstanceFn         func(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error)
-	UpdateInstanceCapacityFn func(ctx context.Context, id string, req models.UpdateInstanceCapacityRequest) (*models.RedisInstance, error)
+	PatchInstanceFn          func(ctx context.Context, id string, req models.PatchInstanceRequest) (*models.RedisInstance, error)
 	DeleteInstanceFn         func(ctx context.Context, id string) error
 }
 
@@ -46,11 +46,11 @@ func (m *mockStore) CreateInstance(ctx context.Context, req models.CreateRedisRe
 	return m.CreateInstanceFn(ctx, req)
 }
 
-func (m *mockStore) UpdateInstanceCapacity(ctx context.Context, id string, req models.UpdateInstanceCapacityRequest) (*models.RedisInstance, error) {
-	if m.UpdateInstanceCapacityFn == nil {
+func (m *mockStore) PatchInstance(ctx context.Context, id string, req models.PatchInstanceRequest) (*models.RedisInstance, error) {
+	if m.PatchInstanceFn == nil {
 		return nil, nil
 	}
-	return m.UpdateInstanceCapacityFn(ctx, id, req)
+	return m.PatchInstanceFn(ctx, id, req)
 }
 
 func (m *mockStore) DeleteInstance(ctx context.Context, id string) error {

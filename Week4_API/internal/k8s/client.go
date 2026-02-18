@@ -5,6 +5,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -15,6 +16,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/dynamic"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
@@ -36,7 +38,7 @@ type InstanceStore interface {
 	ListInstances(ctx context.Context) ([]models.RedisInstance, error)
 	GetInstance(ctx context.Context, id string) (*models.RedisInstance, error)
 	CreateInstance(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error)
-	UpdateInstanceCapacity(ctx context.Context, id string, req models.UpdateInstanceCapacityRequest) (*models.RedisInstance, error)
+	PatchInstance(ctx context.Context, id string, req models.PatchInstanceRequest) (*models.RedisInstance, error)
 	DeleteInstance(ctx context.Context, id string) error
 }
 
@@ -280,32 +282,78 @@ func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.Crea
 	return inst, nil
 }
 
-// UpdateInstanceCapacity updates storage size (and optionally StorageClass) on the RedisFailover CR.
+// jsonPatchOp represents one RFC 6902 JSON Patch operation.
+type jsonPatchOp struct {
+	Op    string      `json:"op"`
+	Path  string      `json:"path"`
+	Value interface{} `json:"value,omitempty"`
+}
+
+// PatchInstance performs a partial update on the RedisFailover CR using the Kubernetes API server's
+// JSON Patch (RFC 6902). Only the requested fields are sent; the server applies the patch on the
+// current resource version, avoiding read-modify-write races and accidental overwrite of other fields.
+// It can update the display name (annotation), replicas, and capacity (PVC size).
 // Returns ErrNotFound if the CR does not exist.
-func (s *RedisFailoverStore) UpdateInstanceCapacity(ctx context.Context, id string, req models.UpdateInstanceCapacityRequest) (*models.RedisInstance, error) {
-	if err := ValidateUpdateInstanceCapacityRequest(req); err != nil {
+func (s *RedisFailoverStore) PatchInstance(ctx context.Context, id string, req models.PatchInstanceRequest) (*models.RedisInstance, error) {
+	if err := ValidatePatchInstanceRequest(req); err != nil {
 		return nil, fmt.Errorf("validation: %w", err)
 	}
 	ns := namespaceFromContext(ctx, s.namespace)
-	obj, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Get(ctx, id, metav1.GetOptions{})
+
+	var ops []jsonPatchOp
+
+	// Display name: patch annotation. We may need current annotations so we don't wipe them when the map is missing.
+	const displayNameKey = "app.kubernetes.io/display-name"
+	if req.Name != nil {
+		var existingAnnotations map[string]string
+		existing, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Get(ctx, id, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
+			}
+			return nil, fmt.Errorf("get redisfailover for annotation patch: %w", err)
+		}
+		existingAnnotations, _, _ = unstructured.NestedStringMap(existing.Object, "metadata", "annotations")
+		merged := map[string]string{}
+		for k, v := range existingAnnotations {
+			merged[k] = v
+		}
+		merged[displayNameKey] = *req.Name
+		if existingAnnotations == nil {
+			ops = append(ops, jsonPatchOp{Op: "add", Path: "/metadata/annotations", Value: merged})
+		} else {
+			// JSON Pointer: / in key must be encoded as ~1
+			ops = append(ops, jsonPatchOp{Op: "add", Path: "/metadata/annotations/app.kubernetes.io~1display-name", Value: *req.Name})
+		}
+	}
+
+	if req.Capacity != nil {
+		ops = append(ops, jsonPatchOp{
+			Op: "replace", Path: "/spec/redis/storage/persistentVolumeClaim/spec/resources/requests/storage", Value: *req.Capacity,
+		})
+	}
+	if req.RedisReplicas != nil {
+		ops = append(ops, jsonPatchOp{Op: "replace", Path: "/spec/redis/replicas", Value: int64(*req.RedisReplicas)})
+	}
+	if req.SentinelReplicas != nil {
+		ops = append(ops, jsonPatchOp{Op: "replace", Path: "/spec/sentinel/replicas", Value: int64(*req.SentinelReplicas)})
+	}
+
+	if len(ops) == 0 {
+		return nil, fmt.Errorf("validation: at least one field must be provided")
+	}
+
+	patchBytes, err := json.Marshal(ops)
+	if err != nil {
+		return nil, fmt.Errorf("build json patch: %w", err)
+	}
+
+	updated, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Patch(ctx, id, types.JSONPatchType, patchBytes, metav1.PatchOptions{})
 	if err != nil {
 		if k8serrors.IsNotFound(err) {
 			return nil, fmt.Errorf("%w: %s", ErrNotFound, id)
 		}
-		return nil, fmt.Errorf("get redisfailover %q: %w", id, err)
-	}
-	pvcPath := []string{"spec", "redis", "storage", "persistentVolumeClaim", "spec"}
-	if err := unstructured.SetNestedField(obj.Object, req.Capacity, append(pvcPath, "resources", "requests", "storage")...); err != nil {
-		return nil, fmt.Errorf("set storage: %w", err)
-	}
-	if req.StorageClass != "" {
-		if err := unstructured.SetNestedField(obj.Object, req.StorageClass, append(pvcPath, "storageClassName")...); err != nil {
-			return nil, fmt.Errorf("set storageClassName: %w", err)
-		}
-	}
-	updated, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Update(ctx, obj, metav1.UpdateOptions{})
-	if err != nil {
-		return nil, fmt.Errorf("update redisfailover %q: %w", id, err)
+		return nil, fmt.Errorf("patch redisfailover %q: %w", id, err)
 	}
 	inst := redisfailoverToModel(updated)
 	s.attachConnectionInfo(ctx, inst)
@@ -361,9 +409,15 @@ func redisfailoverToModel(obj *unstructured.Unstructured) *models.RedisInstance 
 	capacity, _, _ := unstructured.NestedString(obj.Object, "spec", "redis", "storage", "persistentVolumeClaim", "spec", "resources", "requests", "storage")
 	redisReplicas, _, _ := unstructured.NestedInt64(obj.Object, "spec", "redis", "replicas")
 	sentinelReplicas, _, _ := unstructured.NestedInt64(obj.Object, "spec", "sentinel", "replicas")
+	// Use display-name annotation as the human-friendly name when present.
+	displayName := name
+	if dn, ok, _ := unstructured.NestedString(obj.Object, "metadata", "annotations", "app.kubernetes.io/display-name"); ok && dn != "" {
+		displayName = dn
+	}
+
 	return &models.RedisInstance{
 		ID:               name,
-		Name:             name,
+		Name:             displayName,
 		Namespace:        ns,
 		Status:           status,
 		Capacity:         capacity,

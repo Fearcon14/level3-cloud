@@ -76,14 +76,34 @@ func ValidateCreateRedisRequest(req models.CreateRedisRequest) error {
 	return nil
 }
 
-// ValidateUpdateInstanceCapacityRequest validates capacity (and optionally storageClass) before calling the API.
-func ValidateUpdateInstanceCapacityRequest(req models.UpdateInstanceCapacityRequest) error {
-	if req.Capacity == "" {
-		return fmt.Errorf("capacity is required")
+// ValidatePatchInstanceRequest validates fields for a partial instance update.
+func ValidatePatchInstanceRequest(req models.PatchInstanceRequest) error {
+	// At least one field must be provided.
+	if req.Name == nil && req.Capacity == nil && req.RedisReplicas == nil && req.SentinelReplicas == nil {
+		return fmt.Errorf("at least one field must be provided")
 	}
-	if _, err := resource.ParseQuantity(req.Capacity); err != nil {
-		return fmt.Errorf("capacity: invalid quantity %q: %w", req.Capacity, err)
+
+	if req.Capacity != nil {
+		if *req.Capacity == "" {
+			return fmt.Errorf("capacity cannot be empty")
+		}
+		if _, err := resource.ParseQuantity(*req.Capacity); err != nil {
+			return fmt.Errorf("capacity: invalid quantity %q: %w", *req.Capacity, err)
+		}
 	}
+
+	if req.RedisReplicas != nil {
+		if n := *req.RedisReplicas; n < minReplicas || n > maxReplicas {
+			return fmt.Errorf("redisReplicas must be between %d and %d, got %d", minReplicas, maxReplicas, n)
+		}
+	}
+
+	if req.SentinelReplicas != nil {
+		if n := *req.SentinelReplicas; n < minReplicas || n > maxReplicas {
+			return fmt.Errorf("sentinelReplicas must be between %d and %d, got %d", minReplicas, maxReplicas, n)
+		}
+	}
+
 	return nil
 }
 

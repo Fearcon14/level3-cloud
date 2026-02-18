@@ -39,8 +39,18 @@ type CreateRedisRequest struct {
 	MemoryLimit   string `json:"memoryLimit,omitempty"`    // e.g. "512Mi"
 }
 
-// UpdateInstanceCapacityRequest is the body for PUT /instances/:id (update capacity/storage).
-type UpdateInstanceCapacityRequest struct {
-	Capacity      string `json:"capacity"`
-	StorageClass string `json:"storageClass,omitempty"`
+// PatchInstanceRequest is the body for PATCH /instances/:id (partial update).
+// All fields are optional; only the provided fields will be updated.
+type PatchInstanceRequest struct {
+	// New display name for the instance (stored as an annotation on the RedisFailover resource).
+	Name *string `json:"name,omitempty"`
+
+	// New storage capacity (PVC size), e.g. "20Gi".
+	Capacity *string `json:"capacity,omitempty"`
+
+	// New number of Redis replicas.
+	RedisReplicas *int `json:"redisReplicas,omitempty"`
+
+	// New number of Sentinel replicas.
+	SentinelReplicas *int `json:"sentinelReplicas,omitempty"`
 }

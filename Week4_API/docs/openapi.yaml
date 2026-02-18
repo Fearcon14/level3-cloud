@@ -127,11 +127,9 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
-
-  /api/v1/instances/{id}/capacity:
-    put:
-      summary: Update Redis instance capacity
-      operationId: updateInstanceCapacity
+    patch:
+      summary: Partially update a Redis instance
+      operationId: patchInstance
       tags:
         - Instances
       parameters:
@@ -147,7 +145,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/UpdateInstanceCapacityRequest'
+              $ref: '#/components/schemas/PatchInstanceRequest'
       responses:
         '200':
           description: Updated Redis instance
@@ -156,7 +154,7 @@ paths:
               schema:
                 $ref: '#/components/schemas/RedisInstance'
         '400':
-          description: Invalid request body (e.g., missing capacity)
+          description: Invalid request body (e.g., no fields to update or invalid values)
           content:
             application/json:
               schema:
@@ -292,20 +290,28 @@ components:
         - name
         - capacity
 
-    UpdateInstanceCapacityRequest:
+    PatchInstanceRequest:
       type: object
-      description: Request body for updating capacity (and optionally storage class).
+      description: Request body for partially updating a Redis instance.
       properties:
+        name:
+          type: string
+          description: New display name for the instance.
+          example: my-renamed-redis
         capacity:
           type: string
           description: New storage capacity (e.g. "20Gi").
           example: 20Gi
-        storageClass:
-          type: string
-          description: New StorageClass; optional.
-          example: premium-perf1-stackit
-      required:
-        - capacity
+        redisReplicas:
+          type: integer
+          format: int32
+          description: New number of Redis replicas.
+          example: 5
+        sentinelReplicas:
+          type: integer
+          format: int32
+          description: New number of Sentinel replicas.
+          example: 5
 
     ErrorResponse:
       type: object

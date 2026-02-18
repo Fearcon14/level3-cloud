@@ -172,6 +172,98 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/instances/{id}/cache:
+    post:
+      summary: Store a key-value pair in the instance cache
+      operationId: setCache
+      tags:
+        - Cache
+      parameters:
+        - $ref: '#/components/parameters/XUser'
+        - name: id
+          in: path
+          required: true
+          description: ID (name) of the Redis instance
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SetCacheRequest'
+      responses:
+        '200':
+          description: Value stored successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCacheResponse'
+        '400':
+          description: Invalid request (missing key/value, key too long, or instance not ready)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Instance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Redis unreachable (e.g. instance not ready or network error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /api/v1/instances/{id}/cache/{key}:
+    get:
+      summary: Get a value from the instance cache by key
+      operationId: getCache
+      tags:
+        - Cache
+      parameters:
+        - $ref: '#/components/parameters/XUser'
+        - name: id
+          in: path
+          required: true
+          description: ID (name) of the Redis instance
+          schema:
+            type: string
+        - name: key
+          in: path
+          required: true
+          description: Cache key to look up
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Cache value found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GetCacheResponse'
+        '400':
+          description: Missing key or instance has no public endpoint
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          description: Instance not found or cache key not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Redis unreachable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
 components:
   parameters:
     XUser:
@@ -312,6 +404,41 @@ components:
           format: int32
           description: New number of Sentinel replicas.
           example: 5
+
+    SetCacheRequest:
+      type: object
+      description: Request body for storing a key-value pair in an instance's cache.
+      properties:
+        key:
+          type: string
+          description: Cache key (max 512 bytes).
+          example: mykey
+        value:
+          type: string
+          description: Value to store.
+          example: myvalue
+        ttlSeconds:
+          type: integer
+          minimum: 0
+          description: Optional TTL in seconds; 0 means no expiry.
+          example: 3600
+      required:
+        - key
+        - value
+
+    GetCacheResponse:
+      type: object
+      description: Response containing a cache key and its value.
+      properties:
+        key:
+          type: string
+          example: mykey
+        value:
+          type: string
+          example: myvalue
+      required:
+        - key
+        - value
 
     ErrorResponse:
       type: object

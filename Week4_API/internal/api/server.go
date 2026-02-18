@@ -11,7 +11,7 @@ func NewServer(cfg *Config, store k8s.InstanceStore) *echo.Echo {
 	e.Use(middleware.RequestLogger())
 	e.Use(middleware.Recover())
 
-	app := NewApplication(store, e.Logger)
+	app := NewApplication(store, nil, e.Logger)
 	RegisterRoutes(e, app)
 	return e
 }

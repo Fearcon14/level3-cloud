@@ -8,22 +8,31 @@ import (
 	"strings"
 	"time"
 
+	"github.com/Fearcon14/level3-cloud/Week4_API/internal/cache"
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/k8s"
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/models"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v5"
 )
 
+// MaxCacheKeyLength is the maximum allowed length for a cache key (Redis best practice).
+const MaxCacheKeyLength = 512
+
 // Application holds dependencies for our handlers (e.g. K8s client, Logger etc.)
 type Application struct {
-	Store  k8s.InstanceStore
-	Logger *slog.Logger
+	Store       k8s.InstanceStore
+	CacheClient cache.ClientInterface
+	Logger      *slog.Logger
 }
 
-func NewApplication(store k8s.InstanceStore, logger *slog.Logger) *Application {
+func NewApplication(store k8s.InstanceStore, cacheClient cache.ClientInterface, logger *slog.Logger) *Application {
+	if cacheClient == nil {
+		cacheClient = cache.NewClient()
+	}
 	return &Application{
-		Store:  store,
-		Logger: logger,
+		Store:       store,
+		CacheClient: cacheClient,
+		Logger:      logger,
 	}
 }
 
@@ -153,6 +162,94 @@ func (a *Application) DeleteInstance(c *echo.Context) error {
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to delete instance"})
 	}
 	return c.NoContent(http.StatusNoContent)
+}
+
+// SetCache stores a key-value pair in the Redis instance's cache (POST /instances/:id/cache).
+// Request body: { "key": "...", "value": "...", "ttlSeconds": 0 (optional) }.
+// Returns 400 if key/value are missing or key is too long; 404 if instance not found; 503 if Redis is unreachable.
+func (a *Application) SetCache(c *echo.Context) error {
+	id := c.Param("id")
+	user := c.Request().Header.Get("X-User")
+	ns := namespaceForUser(user)
+	if ns == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing or empty X-User header"})
+	}
+	ctx := k8s.WithNamespace(c.Request().Context(), ns)
+
+	instance, err := a.Store.GetInstance(ctx, id)
+	if err != nil {
+		if errors.Is(err, k8s.ErrNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "instance not found"})
+		}
+		a.Logger.Error("get instance for cache set failed", "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to get instance"})
+	}
+	if instance.PublicEndpoint == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "instance has no public endpoint (not ready)"})
+	}
+
+	var req models.SetCacheRequest
+	if err := c.Bind(&req); err != nil {
+		a.Logger.Error("failed to bind set cache request", "error", err)
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "invalid request body"})
+	}
+	if req.Key == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "key is required"})
+	}
+	if len(req.Key) > MaxCacheKeyLength {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": fmt.Sprintf("key must be at most %d bytes", MaxCacheKeyLength)})
+	}
+	if req.TTLSeconds < 0 {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "ttlSeconds must be non-negative"})
+	}
+
+	if err := a.CacheClient.Set(ctx, instance.PublicEndpoint, instance.Password, cache.SetOptions{
+		Key:        req.Key,
+		Value:      req.Value,
+		TTLSeconds: req.TTLSeconds,
+	}); err != nil {
+		a.Logger.Error("cache set failed", "id", id, "key", req.Key, "error", err)
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "failed to store value in cache"})
+	}
+	return c.JSON(http.StatusOK, models.GetCacheResponse{Key: req.Key, Value: req.Value})
+}
+
+// GetCache returns the value for a key from the Redis instance's cache (GET /instances/:id/cache/:key).
+// Returns 404 if the instance or the key does not exist; 503 if Redis is unreachable.
+func (a *Application) GetCache(c *echo.Context) error {
+	id := c.Param("id")
+	key := c.Param("key")
+	user := c.Request().Header.Get("X-User")
+	ns := namespaceForUser(user)
+	if ns == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing or empty X-User header"})
+	}
+	ctx := k8s.WithNamespace(c.Request().Context(), ns)
+
+	instance, err := a.Store.GetInstance(ctx, id)
+	if err != nil {
+		if errors.Is(err, k8s.ErrNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "instance not found"})
+		}
+		a.Logger.Error("get instance for cache get failed", "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to get instance"})
+	}
+	if instance.PublicEndpoint == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "instance has no public endpoint (not ready)"})
+	}
+	if key == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "key is required"})
+	}
+
+	value, err := a.CacheClient.Get(ctx, instance.PublicEndpoint, instance.Password, key)
+	if err != nil {
+		if errors.Is(err, cache.ErrKeyNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "cache key not found"})
+		}
+		a.Logger.Error("cache get failed", "id", id, "key", key, "error", err)
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "failed to get value from cache"})
+	}
+	return c.JSON(http.StatusOK, models.GetCacheResponse{Key: key, Value: value})
 }
 
 // Login handles user authentication and issues a JWT

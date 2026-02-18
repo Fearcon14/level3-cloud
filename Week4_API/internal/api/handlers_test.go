@@ -63,7 +63,7 @@ func (m *mockStore) DeleteInstance(ctx context.Context, id string) error {
 // newTestApp creates an Application with a mock store and a no-op logger.
 func newTestApp(store k8s.InstanceStore) *Application {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	return NewApplication(store, logger)
+	return NewApplication(store, nil, logger)
 }
 
 func newEcho() *echo.Echo {

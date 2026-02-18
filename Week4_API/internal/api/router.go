@@ -17,4 +17,8 @@ func RegisterRoutes(e *echo.Echo, app *Application) {
 	v1.POST("/instances", app.CreateInstance)
 	v1.PATCH("/instances/:id", app.PatchInstance)
 	v1.DELETE("/instances/:id", app.DeleteInstance)
+
+	// Cache: more specific route first so :id does not capture "cache"
+	v1.GET("/instances/:id/cache/:key", app.GetCache)
+	v1.POST("/instances/:id/cache", app.SetCache)
 }

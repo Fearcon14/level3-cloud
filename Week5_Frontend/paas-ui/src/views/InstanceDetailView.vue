@@ -22,6 +22,68 @@ const editForm = reactive({
   sentinelReplicas: 0
 })
 
+// Cache API: endpoints and state
+const cacheGetKey = ref('')
+const cacheGetResult = ref(null)
+const cacheGetError = ref(null)
+const cacheGetLoading = ref(false)
+const cacheSetKey = ref('')
+const cacheSetValue = ref('')
+const cacheSetTtl = ref(0)
+const cacheSetLoading = ref(false)
+const cacheSetError = ref(null)
+const cacheSetSuccess = ref(false)
+
+function cacheGetEndpoint () {
+  const id = instance.value?.id ?? ':id'
+  return `/api/v1/instances/${id}/cache/:key`
+}
+function cachePostEndpoint () {
+  const id = instance.value?.id ?? ':id'
+  return `/api/v1/instances/${id}/cache`
+}
+
+const fetchCacheValue = async () => {
+  const key = (cacheGetKey.value || '').trim()
+  if (!key) {
+    cacheGetError.value = 'Enter a key'
+    return
+  }
+  cacheGetError.value = null
+  cacheGetResult.value = null
+  cacheGetLoading.value = true
+  try {
+    const response = await axios.get(`/api/v1/instances/${instance.value.id}/cache/${encodeURIComponent(key)}`)
+    cacheGetResult.value = response.data
+  } catch (err) {
+    cacheGetError.value = err.response?.data?.error ?? err.message ?? 'Failed to get value'
+    cacheGetResult.value = null
+  } finally {
+    cacheGetLoading.value = false
+  }
+}
+
+const setCacheValue = async () => {
+  const key = (cacheSetKey.value || '').trim()
+  if (!key) {
+    cacheSetError.value = 'Key is required'
+    return
+  }
+  cacheSetError.value = null
+  cacheSetSuccess.value = false
+  cacheSetLoading.value = true
+  try {
+    const payload = { key, value: cacheSetValue.value }
+    if (cacheSetTtl.value > 0) payload.ttlSeconds = cacheSetTtl.value
+    await axios.post(`/api/v1/instances/${instance.value.id}/cache`, payload)
+    cacheSetSuccess.value = true
+  } catch (err) {
+    cacheSetError.value = err.response?.data?.error ?? err.message ?? 'Failed to set value'
+  } finally {
+    cacheSetLoading.value = false
+  }
+}
+
 const copyToClipboard = async (text) => {
   try {
     await navigator.clipboard.writeText(text)
@@ -212,6 +274,60 @@ onMounted(() => {
               <button class="btn btn-outline-secondary" type="button" @click="copyToClipboard(instance.password)">
                 <i class="bi bi-clipboard"></i> Copy
               </button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cache API endpoints and try-it UI -->
+        <div class="mt-4 pt-3 border-top">
+          <h5 class="text-muted text-uppercase fs-6 fw-bold mb-3">Cache API</h5>
+          <p class="text-secondary small mb-3">
+            Use these API endpoints to read and write cache entries for this instance.
+          </p>
+          <ul class="list-group list-group-flush mb-4">
+            <li class="list-group-item d-flex align-items-start gap-2">
+              <span class="badge bg-primary">GET</span>
+              <code class="font-monospace small flex-grow-1" :title="cacheGetEndpoint()">{{ cacheGetEndpoint() }}</code>
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="copyToClipboard(cacheGetEndpoint())">
+                <i class="bi bi-clipboard"></i>
+              </button>
+            </li>
+            <li class="list-group-item d-flex align-items-start gap-2">
+              <span class="badge bg-success">POST</span>
+              <code class="font-monospace small flex-grow-1" :title="cachePostEndpoint()">{{ cachePostEndpoint() }}</code>
+              <button type="button" class="btn btn-outline-secondary btn-sm" @click="copyToClipboard(cachePostEndpoint())">
+                <i class="bi bi-clipboard"></i>
+              </button>
+            </li>
+          </ul>
+
+          <div class="row">
+            <div class="col-md-6 mb-3">
+              <h6 class="text-muted small fw-bold mb-2">Get value</h6>
+              <div class="input-group mb-2">
+                <input v-model="cacheGetKey" type="text" class="form-control font-monospace" placeholder="Cache key" @keydown.enter.prevent="fetchCacheValue">
+                <button type="button" class="btn btn-outline-primary" :disabled="cacheGetLoading" @click="fetchCacheValue">
+                  {{ cacheGetLoading ? '…' : 'GET' }}
+                </button>
+              </div>
+              <p v-if="cacheGetError" class="text-danger small mb-0">{{ cacheGetError }}</p>
+              <div v-if="cacheGetResult" class="small">
+                <span class="text-muted">Value:</span>
+                <code class="d-block mt-1 p-2 bg-light rounded">{{ cacheGetResult.value }}</code>
+              </div>
+            </div>
+            <div class="col-md-6 mb-3">
+              <h6 class="text-muted small fw-bold mb-2">Set value</h6>
+              <div class="mb-2">
+                <input v-model="cacheSetKey" type="text" class="form-control form-control-sm font-monospace mb-1" placeholder="Key">
+                <input v-model="cacheSetValue" type="text" class="form-control form-control-sm font-monospace mb-1" placeholder="Value">
+                <input v-model.number="cacheSetTtl" type="number" class="form-control form-control-sm font-monospace" placeholder="TTL (seconds, 0 = no expiry)" min="0">
+              </div>
+              <button type="button" class="btn btn-outline-success btn-sm" :disabled="cacheSetLoading" @click="setCacheValue">
+                {{ cacheSetLoading ? '…' : 'POST' }}
+              </button>
+              <p v-if="cacheSetError" class="text-danger small mb-0 mt-1">{{ cacheSetError }}</p>
+              <p v-if="cacheSetSuccess" class="text-success small mb-0 mt-1">Value stored.</p>
             </div>
           </div>
         </div>

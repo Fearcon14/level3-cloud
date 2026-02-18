@@ -4,20 +4,49 @@ info:
   version: 1.0.0
   description: |
     API for managing Redis instances backed by Kubernetes RedisFailover custom resources.
+    Protected endpoints require a JWT obtained from the Login endpoint (Authorization: Bearer &lt;token&gt;).
+    The JWT subject (sub claim) is used as the logical user/tenant and mapped to a Kubernetes namespace
+    (e.g. "kevin" -> "tenant-kevin").
 
 servers:
   - url: http://localhost:8080
     description: Local development server
 
 paths:
+  /api/login:
+    post:
+      summary: Authenticate and obtain a JWT
+      operationId: login
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Success; returns a JWT for use in Authorization header.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LoginResponse'
+        '401':
+          description: Invalid credentials
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/instances:
     get:
       summary: List Redis instances
       operationId: listInstances
       tags:
         - Instances
-      parameters:
-        - $ref: '#/components/parameters/XUser'
+      security:
+        - bearerAuth: []
       responses:
         '200':
           description: List of Redis instances
@@ -38,8 +67,8 @@ paths:
       operationId: createInstance
       tags:
         - Instances
-      parameters:
-        - $ref: '#/components/parameters/XUser'
+      security:
+        - bearerAuth: []
       requestBody:
         required: true
         content:
@@ -72,8 +101,9 @@ paths:
       operationId: getInstance
       tags:
         - Instances
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/XUser'
         - name: id
           in: path
           required: true
@@ -104,8 +134,9 @@ paths:
       operationId: deleteInstance
       tags:
         - Instances
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/XUser'
         - name: id
           in: path
           required: true
@@ -132,8 +163,9 @@ paths:
       operationId: patchInstance
       tags:
         - Instances
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/XUser'
         - name: id
           in: path
           required: true
@@ -178,8 +210,9 @@ paths:
       operationId: setCache
       tags:
         - Cache
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/XUser'
         - name: id
           in: path
           required: true
@@ -224,8 +257,9 @@ paths:
       operationId: getCache
       tags:
         - Cache
+      security:
+        - bearerAuth: []
       parameters:
-        - $ref: '#/components/parameters/XUser'
         - name: id
           in: path
           required: true
@@ -265,17 +299,15 @@ paths:
                 $ref: '#/components/schemas/ErrorResponse'
 
 components:
-  parameters:
-    XUser:
-      name: X-User
-      in: header
-      required: true
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
       description: >
-        Logical user / tenant identifier. The API maps this value to a
-        Kubernetes namespace (e.g. "alice" -> "tenant-alice") and performs
-        all operations in that namespace.
-      schema:
-        type: string
+        JWT obtained from POST /api/login. Send as Authorization: Bearer &lt;token&gt;.
+        The token's "sub" claim is used as the logical user/tenant and mapped to a
+        Kubernetes namespace (e.g. "kevin" -> "tenant-kevin").
 
   schemas:
     RedisInstance:
@@ -450,3 +482,29 @@ components:
           example: instance not found
       required:
         - error
+
+    LoginRequest:
+      type: object
+      description: Request body for authentication.
+      properties:
+        username:
+          type: string
+          description: User name.
+          example: user
+        password:
+          type: string
+          description: Password.
+          example: userpassword
+      required:
+        - username
+        - password
+
+    LoginResponse:
+      type: object
+      description: Response containing the JWT for use in Authorization header.
+      properties:
+        token:
+          type: string
+          description: JWT to send as Authorization Bearer token on protected endpoints.
+      required:
+        - token

@@ -25,10 +25,6 @@ rules:
   - apiGroups: [""]
     resources: ["secrets"]
     verbs: ["create", "delete", "get", "update", "patch"]
-  # Rollout restart Redis/Sentinel after password regeneration (rfr-*, rfs-* workloads)
-  - apiGroups: ["apps"]
-    resources: ["statefulsets", "deployments"]
-    verbs: ["get", "patch", "update"]
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRoleBinding

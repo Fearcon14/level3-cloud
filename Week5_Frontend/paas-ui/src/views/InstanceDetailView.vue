@@ -35,10 +35,11 @@ const fetchInstance = async () => {
   try {
     const response = await axios.get(`/api/v1/instances/${instanceId}`)
     instance.value = response.data
-    loading.value = false
+    error.value = null
   } catch (err) {
     console.error('API Error:', err)
     error.value = 'Failed to load instance details.'
+  } finally {
     loading.value = false
   }
 }
@@ -88,9 +89,17 @@ onMounted(() => {
 
 <template>
   <div class="container mt-5">
-    <div class="mb-4">
+    <div class="mb-4 d-flex justify-content-between align-items-center">
       <button @click="router.push('/')" class="btn btn-outline-secondary btn-sm">
         &larr; Back to Dashboard
+      </button>
+      <button
+        v-if="!loading && (instance || error)"
+        @click="loading = true; fetchInstance()"
+        class="btn btn-outline-secondary btn-sm"
+        title="Refresh"
+      >
+        <i class="bi bi-arrow-clockwise"></i>
       </button>
     </div>
 
@@ -112,8 +121,8 @@ onMounted(() => {
       <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h2 class="h4 mb-0">{{ instance.name }}</h2>
         <div class="d-flex align-items-center gap-2">
-          <button type="button" class="btn btn-outline-primary btn-sm" @click="openEditModal">
-            Modify
+          <button type="button" class="btn btn-outline-primary btn-sm" title="Modify" @click="openEditModal">
+            <i class="bi bi-pencil"></i>
           </button>
           <span class="badge"
             :class="instance.status === 'running' ? 'bg-success' : 'bg-warning text-dark'">

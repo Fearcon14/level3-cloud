@@ -384,12 +384,6 @@ func (s *RedisFailoverStore) RegenerateInstancePassword(ctx context.Context, id 
 	if _, err := s.client.Resource(gvrSecrets).Namespace(ns).Update(ctx, obj, metav1.UpdateOptions{}); err != nil {
 		return nil, fmt.Errorf("update secret %q: %w", secretName, err)
 	}
-	// Give the secret update time to propagate to the kubelet cache so new pods mount the new password.
-	select {
-	case <-ctx.Done():
-		return nil, ctx.Err()
-	case <-time.After(5 * time.Second):
-	}
 	// Restart Redis and Sentinel workloads so they pick up the new password from the secret.
 	s.rolloutRestartRedisWorkloads(ctx, ns, id)
 	inst, err := s.GetInstance(ctx, id)
@@ -400,48 +394,33 @@ func (s *RedisFailoverStore) RegenerateInstancePassword(ctx context.Context, id 
 	return inst, nil
 }
 
-// rolloutRestartRedisWorkloads restarts Redis and Sentinel so they pick up the new password.
-// - Redis: we delete the Redis pods (rfr-<id>-*) so the StatefulSet recreates them; the operator
-//   often reconciles the StatefulSet spec and would revert an annotation-based rollout.
-// - Sentinel: we patch the Deployment with restartedAt so it rolls out normally.
+// rolloutRestartRedisWorkloads triggers a rollout restart of the Redis StatefulSet and Sentinel Deployment
+// (Spotahome operator naming: rfr-<name>, rfs-<name>) so pods reload the updated auth secret.
 func (s *RedisFailoverStore) rolloutRestartRedisWorkloads(ctx context.Context, ns, id string) {
-	// Restart Redis by deleting its pods (StatefulSet will recreate them with the new secret).
-	s.deleteRedisPodsForRestart(ctx, ns, id)
-	// Restart Sentinel by patching the Deployment template (rollout restart).
-	s.rolloutRestartDeployment(ctx, ns, "rfs-"+id)
-}
-
-// deleteRedisPodsForRestart deletes pods that belong to the Redis StatefulSet (rfr-<id>-*) so they are recreated with the updated secret.
-func (s *RedisFailoverStore) deleteRedisPodsForRestart(ctx context.Context, ns, id string) {
-	list, err := s.client.Resource(gvrPods).Namespace(ns).List(ctx, metav1.ListOptions{
-		LabelSelector: fmt.Sprintf("redisfailovers.databases.spotahome.com/name=%s", id),
-	})
-	if err != nil {
-		return
-	}
-	prefix := "rfr-" + id + "-"
-	for i := range list.Items {
-		name, _, _ := unstructured.NestedString(list.Items[i].Object, "metadata", "name")
-		if name == "" || !strings.HasPrefix(name, prefix) {
+	restartedAt := time.Now().UTC().Format(time.RFC3339)
+	annotationPatch := map[string]string{"kubectl.kubernetes.io/restartedAt": restartedAt}
+	for _, gvr := range []schema.GroupVersionResource{gvrStatefulSets, gvrDeployments} {
+		name := "rfr-" + id
+		if gvr.Resource == "deployments" {
+			name = "rfs-" + id
+		}
+		obj, err := s.client.Resource(gvr).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
+		if err != nil {
+			if k8serrors.IsNotFound(err) {
+				continue
+			}
 			continue
 		}
-		_ = s.client.Resource(gvrPods).Namespace(ns).Delete(ctx, name, metav1.DeleteOptions{})
+		annotations, _, _ := unstructured.NestedStringMap(obj.Object, "spec", "template", "metadata", "annotations")
+		if annotations == nil {
+			annotations = map[string]string{}
+		}
+		for k, v := range annotationPatch {
+			annotations[k] = v
+		}
+		_ = unstructured.SetNestedStringMap(obj.Object, annotations, "spec", "template", "metadata", "annotations")
+		_, _ = s.client.Resource(gvr).Namespace(ns).Update(ctx, obj, metav1.UpdateOptions{})
 	}
-}
-
-// rolloutRestartDeployment patches a Deployment's pod template with restartedAt to trigger a rollout.
-func (s *RedisFailoverStore) rolloutRestartDeployment(ctx context.Context, ns, name string) {
-	obj, err := s.client.Resource(gvrDeployments).Namespace(ns).Get(ctx, name, metav1.GetOptions{})
-	if err != nil {
-		return
-	}
-	annotations, _, _ := unstructured.NestedStringMap(obj.Object, "spec", "template", "metadata", "annotations")
-	if annotations == nil {
-		annotations = map[string]string{}
-	}
-	annotations["kubectl.kubernetes.io/restartedAt"] = time.Now().UTC().Format(time.RFC3339)
-	_ = unstructured.SetNestedStringMap(obj.Object, annotations, "spec", "template", "metadata", "annotations")
-	_, _ = s.client.Resource(gvrDeployments).Namespace(ns).Update(ctx, obj, metav1.UpdateOptions{})
 }
 
 // DeleteInstance deletes the RedisFailover CR; the operator cleans up the underlying resources.
@@ -468,7 +447,8 @@ var gvrNamespaces = schema.GroupVersionResource{Group: "", Version: "v1", Resour
 // gvrSecrets is used to create and delete the secret containing the Redis password.
 var gvrSecrets = schema.GroupVersionResource{Group: "", Version: "v1", Resource: "secrets"}
 
-// gvrDeployments is used to trigger Sentinel rollout restart after password regeneration (rfs-<name>). Redis is restarted by deleting its pods (rfr-<name>-*).
+// gvrStatefulSets and gvrDeployments are used to trigger rollout restart after password regeneration (Spotahome operator naming: rfr-<name>, rfs-<name>).
+var gvrStatefulSets = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "statefulsets"}
 var gvrDeployments = schema.GroupVersionResource{Group: "apps", Version: "v1", Resource: "deployments"}
 
 const (

@@ -66,9 +66,38 @@ func newTestApp(store k8s.InstanceStore) *Application {
 	return NewApplication(store, nil, logger)
 }
 
-func newEcho() *echo.Echo {
+// newTestEchoWithAuth returns an Echo and the v1 group protected by JWTMiddleware.
+// Register POST /api/login on e; register protected routes on v1 (e.g. v1.POST("/instances", app.CreateInstance)).
+func newTestEchoWithAuth(app *Application) (*echo.Echo, *echo.Group) {
 	e := echo.New()
-	return e
+	e.POST("/api/login", app.Login)
+	v1 := e.Group("/api/v1")
+	v1.Use(JWTMiddleware)
+	return e, v1
+}
+
+// getTestBearerToken performs a login and returns "Bearer <token>" for use in protected requests.
+// Uses the same credentials as the real Login handler (kevin / KevinsPassword).
+func getTestBearerToken(t *testing.T, e *echo.Echo) string {
+	t.Helper()
+	loginBody := []byte(`{"username":"kevin","password":"KevinsPassword"}`)
+	req := httptest.NewRequest(http.MethodPost, "/api/login", bytes.NewReader(loginBody))
+	req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("login failed: status %d, body %s", rec.Code, rec.Body.String())
+	}
+	var out struct {
+		Token string `json:"token"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &out); err != nil {
+		t.Fatalf("parse login response: %v", err)
+	}
+	if out.Token == "" {
+		t.Fatal("login response has empty token")
+	}
+	return "Bearer " + out.Token
 }
 
 // POST
@@ -129,8 +158,9 @@ func TestCreateInstance_Handler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := newEcho()
 			app := newTestApp(tt.mockStore)
+			e, v1 := newTestEchoWithAuth(app)
+			v1.POST("/instances", app.CreateInstance)
 
 			bodyBytes, err := json.Marshal(tt.body)
 			if err != nil {
@@ -139,10 +169,9 @@ func TestCreateInstance_Handler(t *testing.T) {
 
 			req := httptest.NewRequest(http.MethodPost, "/api/v1/instances", bytes.NewReader(bodyBytes))
 			req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+			req.Header.Set("Authorization", getTestBearerToken(t, e))
 			rec := httptest.NewRecorder()
 
-			// Register route so Echo builds the context and invokes the handler as in real usage.
-			e.POST("/api/v1/instances", app.CreateInstance)
 			e.ServeHTTP(rec, req)
 
 			if rec.Code != tt.wantStatusCode {
@@ -206,13 +235,14 @@ func TestGetInstance_Handler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := newEcho()
 			app := newTestApp(tt.mockStore)
+			e, v1 := newTestEchoWithAuth(app)
+			v1.GET("/instances/:id", app.GetInstance)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/instances/"+tt.id, nil)
+			req.Header.Set("Authorization", getTestBearerToken(t, e))
 			rec := httptest.NewRecorder()
 
-			e.GET("/api/v1/instances/:id", app.GetInstance)
 			e.ServeHTTP(rec, req)
 
 			if rec.Code != tt.wantStatusCode {
@@ -265,13 +295,14 @@ func TestListInstances_Handler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := newEcho()
 			app := newTestApp(tt.mockStore)
+			e, v1 := newTestEchoWithAuth(app)
+			v1.GET("/instances", app.ListInstances)
 
 			req := httptest.NewRequest(http.MethodGet, "/api/v1/instances", nil)
+			req.Header.Set("Authorization", getTestBearerToken(t, e))
 			rec := httptest.NewRecorder()
 
-			e.GET("/api/v1/instances", app.ListInstances)
 			e.ServeHTTP(rec, req)
 
 			if rec.Code != tt.wantStatusCode {
@@ -323,13 +354,14 @@ func TestDeleteInstance_Handler(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			e := newEcho()
 			app := newTestApp(tt.mockStore)
+			e, v1 := newTestEchoWithAuth(app)
+			v1.DELETE("/instances/:id", app.DeleteInstance)
 
 			req := httptest.NewRequest(http.MethodDelete, "/api/v1/instances/"+tt.id, nil)
+			req.Header.Set("Authorization", getTestBearerToken(t, e))
 			rec := httptest.NewRecorder()
 
-			e.DELETE("/api/v1/instances/:id", app.DeleteInstance)
 			e.ServeHTTP(rec, req)
 
 			if rec.Code != tt.wantStatusCode {

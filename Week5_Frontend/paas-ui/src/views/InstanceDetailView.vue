@@ -1,7 +1,8 @@
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import axios from 'axios'
+import { Modal } from 'bootstrap'
 
 const route = useRoute()
 const router = useRouter()
@@ -11,10 +12,19 @@ const loading = ref(true)
 const error = ref(null)
 const showPassword = ref(false)
 
+const editModalRef = ref(null)
+let editModalInstance = null
+const isSaving = ref(false)
+const editForm = reactive({
+  name: '',
+  capacity: '',
+  redisReplicas: 0,
+  sentinelReplicas: 0
+})
+
 const copyToClipboard = async (text) => {
   try {
     await navigator.clipboard.writeText(text)
-    // Optional: could add a toast notification here
   } catch (err) {
     console.error('Failed to copy:', err)
   }
@@ -33,8 +43,46 @@ const fetchInstance = async () => {
   }
 }
 
+function openEditModal () {
+  if (!instance.value) return
+  editForm.name = instance.value.name ?? ''
+  editForm.capacity = instance.value.capacity ?? ''
+  editForm.redisReplicas = instance.value.redisReplicas ?? 0
+  editForm.sentinelReplicas = instance.value.sentinelReplicas ?? 0
+  editModalInstance.show()
+}
+
+function buildPatchPayload () {
+  if (!instance.value) return {}
+  const payload = {}
+  if (editForm.name !== (instance.value.name ?? '')) payload.name = editForm.name
+  if (String(editForm.capacity).trim() !== String(instance.value.capacity ?? '').trim()) payload.capacity = String(editForm.capacity).trim()
+  if (Number(editForm.redisReplicas) !== Number(instance.value.redisReplicas ?? 0)) payload.redisReplicas = Number(editForm.redisReplicas)
+  if (Number(editForm.sentinelReplicas) !== Number(instance.value.sentinelReplicas ?? 0)) payload.sentinelReplicas = Number(editForm.sentinelReplicas)
+  return payload
+}
+
+const submitEdit = async () => {
+  const payload = buildPatchPayload()
+  if (Object.keys(payload).length === 0) {
+    alert('No changes detected. Edit at least one field to update the instance.')
+    return
+  }
+  isSaving.value = true
+  try {
+    await axios.patch(`/api/v1/instances/${instance.value.id}`, payload)
+    editModalInstance.hide()
+    await fetchInstance()
+  } catch (err) {
+    alert('Failed to update instance: ' + (err.response?.data?.error || err.message))
+  } finally {
+    isSaving.value = false
+  }
+}
+
 onMounted(() => {
   fetchInstance()
+  editModalInstance = new Modal(editModalRef.value)
 })
 </script>
 
@@ -61,12 +109,17 @@ onMounted(() => {
     </div>
 
     <div v-else-if="instance" class="card shadow-sm">
-      <div class="card-header bg-light d-flex justify-content-between align-items-center">
+      <div class="card-header bg-light d-flex justify-content-between align-items-center flex-wrap gap-2">
         <h2 class="h4 mb-0">{{ instance.name }}</h2>
-        <span class="badge"
-          :class="instance.status === 'running' ? 'bg-success' : 'bg-warning text-dark'">
-          {{ instance.status }}
-        </span>
+        <div class="d-flex align-items-center gap-2">
+          <button type="button" class="btn btn-outline-primary btn-sm" @click="openEditModal">
+            Modify
+          </button>
+          <span class="badge"
+            :class="instance.status === 'running' ? 'bg-success' : 'bg-warning text-dark'">
+            {{ instance.status }}
+          </span>
+        </div>
       </div>
       <div class="card-body">
         <div class="row">
@@ -151,6 +204,47 @@ onMounted(() => {
                 <i class="bi bi-clipboard"></i> Copy
               </button>
             </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Modify instance modal -->
+    <div ref="editModalRef" class="modal fade" tabindex="-1" aria-labelledby="editModalLabel" aria-hidden="true">
+      <div class="modal-dialog">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="editModalLabel">Modify instance</h5>
+            <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+          </div>
+          <div class="modal-body">
+            <p class="text-muted small">Change only the fields you want to update. Unchanged values are left as-is.</p>
+            <form id="edit-instance-form" @submit.prevent="submitEdit">
+              <div class="mb-3">
+                <label class="form-label">Display name</label>
+                <input v-model="editForm.name" type="text" class="form-control" placeholder="e.g. my-redis">
+              </div>
+              <div class="mb-3">
+                <label class="form-label">Persistent volume size (capacity)</label>
+                <input v-model="editForm.capacity" type="text" class="form-control" placeholder="e.g. 10Gi">
+              </div>
+              <div class="row">
+                <div class="col-6 mb-3">
+                  <label class="form-label">Redis replicas</label>
+                  <input v-model.number="editForm.redisReplicas" type="number" class="form-control" min="1" max="9">
+                </div>
+                <div class="col-6 mb-3">
+                  <label class="form-label">Sentinel replicas</label>
+                  <input v-model.number="editForm.sentinelReplicas" type="number" class="form-control" min="1" max="9">
+                </div>
+              </div>
+            </form>
+          </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+            <button type="submit" form="edit-instance-form" class="btn btn-primary" :disabled="isSaving">
+              {{ isSaving ? 'Saving…' : 'Save changes' }}
+            </button>
           </div>
         </div>
       </div>

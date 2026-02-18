@@ -13,9 +13,13 @@ rules:
   - apiGroups: ["databases.spotahome.com"]
     resources: ["redisfailovers"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
-  # Read-only access for status/connection info (pods, endpoints)
+  # Pods: read for status; delete to force Redis StatefulSet to recreate pods after password change
   - apiGroups: [""]
-    resources: ["pods", "endpoints"]
+    resources: ["pods"]
+    verbs: ["get", "list", "watch", "delete"]
+  # Endpoints: read-only for connection info
+  - apiGroups: [""]
+    resources: ["endpoints"]
     verbs: ["get", "list", "watch"]
   # Create/get namespaces for per-user tenant namespaces (created on first use)
   - apiGroups: [""]

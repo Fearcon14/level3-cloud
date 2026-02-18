@@ -15,7 +15,6 @@ const showPassword = ref(false)
 const editModalRef = ref(null)
 let editModalInstance = null
 const isSaving = ref(false)
-const isRegeneratingPassword = ref(false)
 const editForm = reactive({
   name: '',
   capacity: '',
@@ -79,20 +78,6 @@ const submitEdit = async () => {
     alert('Failed to update instance: ' + (err.response?.data?.error || err.message))
   } finally {
     isSaving.value = false
-  }
-}
-
-const regeneratePassword = async () => {
-  if (!instance.value?.id) return
-  if (!confirm('Generate a new password? The current password will stop working. Redis and Sentinel will be restarted automatically so the new password takes effect.')) return
-  isRegeneratingPassword.value = true
-  try {
-    const response = await axios.post(`/api/v1/instances/${instance.value.id}/regenerate-password`)
-    instance.value = response.data
-  } catch (err) {
-    alert('Failed to regenerate password: ' + (err.response?.data?.error || err.message))
-  } finally {
-    isRegeneratingPassword.value = false
   }
 }
 
@@ -224,18 +209,8 @@ onMounted(() => {
                 :value="instance.password" 
                 readonly
               >
-              <button class="btn btn-outline-secondary" type="button" @click="copyToClipboard(instance.password)" title="Copy">
+              <button class="btn btn-outline-secondary" type="button" @click="copyToClipboard(instance.password)">
                 <i class="bi bi-clipboard"></i> Copy
-              </button>
-              <button
-                class="btn btn-outline-secondary"
-                type="button"
-                title="Generate new password"
-                :disabled="isRegeneratingPassword"
-                @click="regeneratePassword"
-              >
-                <i v-if="isRegeneratingPassword" class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></i>
-                <i v-else class="bi bi-arrow-clockwise"></i>
               </button>
             </div>
           </div>

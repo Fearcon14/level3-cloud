@@ -136,27 +136,6 @@ func (a *Application) PatchInstance(c *echo.Context) error {
 	return c.JSON(http.StatusOK, updated)
 }
 
-// RegenerateInstancePassword generates a new password for the instance and updates the stored secret.
-// Returns the instance with the new password in the response.
-func (a *Application) RegenerateInstancePassword(c *echo.Context) error {
-	id := c.Param("id")
-	user := c.Request().Header.Get("X-User")
-	ns := namespaceForUser(user)
-	if ns == "" {
-		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing or empty X-User header"})
-	}
-	ctx := k8s.WithNamespace(c.Request().Context(), ns)
-	inst, err := a.Store.RegenerateInstancePassword(ctx, id)
-	if err != nil {
-		if errors.Is(err, k8s.ErrNotFound) {
-			return c.JSON(http.StatusNotFound, map[string]string{"error": "instance not found"})
-		}
-		a.Logger.Error("failed to regenerate password", "id", id, "error", err)
-		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to regenerate password"})
-	}
-	return c.JSON(http.StatusOK, inst)
-}
-
 // DeleteInstance deletes an existing Redis instance. Returns 404 if the instance does not exist.
 func (a *Application) DeleteInstance(c *echo.Context) error {
 	id := c.Param("id")

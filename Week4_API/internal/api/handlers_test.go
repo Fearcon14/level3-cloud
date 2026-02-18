@@ -18,12 +18,11 @@ import (
 
 // mockStore is a test double for k8s.InstanceStore.
 type mockStore struct {
-	ListInstancesFn                 func(ctx context.Context) ([]models.RedisInstance, error)
-	GetInstanceFn                   func(ctx context.Context, id string) (*models.RedisInstance, error)
-	CreateInstanceFn                func(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error)
-	PatchInstanceFn                 func(ctx context.Context, id string, req models.PatchInstanceRequest) (*models.RedisInstance, error)
-	RegenerateInstancePasswordFn    func(ctx context.Context, id string) (*models.RedisInstance, error)
-	DeleteInstanceFn                func(ctx context.Context, id string) error
+	ListInstancesFn          func(ctx context.Context) ([]models.RedisInstance, error)
+	GetInstanceFn            func(ctx context.Context, id string) (*models.RedisInstance, error)
+	CreateInstanceFn         func(ctx context.Context, req models.CreateRedisRequest) (*models.RedisInstance, error)
+	PatchInstanceFn          func(ctx context.Context, id string, req models.PatchInstanceRequest) (*models.RedisInstance, error)
+	DeleteInstanceFn         func(ctx context.Context, id string) error
 }
 
 func (m *mockStore) ListInstances(ctx context.Context) ([]models.RedisInstance, error) {
@@ -52,13 +51,6 @@ func (m *mockStore) PatchInstance(ctx context.Context, id string, req models.Pat
 		return nil, nil
 	}
 	return m.PatchInstanceFn(ctx, id, req)
-}
-
-func (m *mockStore) RegenerateInstancePassword(ctx context.Context, id string) (*models.RedisInstance, error) {
-	if m.RegenerateInstancePasswordFn == nil {
-		return nil, nil
-	}
-	return m.RegenerateInstancePasswordFn(ctx, id)
 }
 
 func (m *mockStore) DeleteInstance(ctx context.Context, id string) error {

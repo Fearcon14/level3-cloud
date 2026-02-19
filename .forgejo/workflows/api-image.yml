@@ -1,5 +1,6 @@
 # CI/CD for Week4_API: build image, push to STACKIT Container Registry, rollout on SKE.
-# Runs only when files under Week4_API/ change.
+# DISABLED: Kept for documentation. The main flow is .forgejo/workflows/e2e+deployment.yml
+# (e2e first, then push + rollout). To run this workflow manually only: trigger via Actions UI.
 #
 # Required secrets in git.onstackit.cloud (Settings → Secrets and variables → Actions):
 #   STACKIT_REGISTRY_USER, STACKIT_REGISTRY_PASSWORD, KUBECONFIG
@@ -9,9 +10,7 @@
 name: Build and deploy paas-api
 
 on:
-  push:
-    paths:
-      - 'Week4_API/**'
+  workflow_dispatch:  # manual only; no push trigger
 
 jobs:
   build-and-push:

@@ -1,5 +1,6 @@
 # CI/CD for Week5_Frontend/paas-ui: build image, push to STACKIT Container Registry, rollout on SKE.
-# Runs only when files under Week5_Frontend/paas-ui/ change.
+# DISABLED: Kept for documentation. The main flow is .forgejo/workflows/e2e+deployment.yml
+# (e2e first, then push + rollout). To run this workflow manually only: trigger via Actions UI.
 #
 # Uses the same secrets as api-image (Settings → Secrets and variables → Actions):
 #   STACKIT_REGISTRY_USER, STACKIT_REGISTRY_PASSWORD, KUBECONFIG or KUBECONFIG_B64
@@ -7,9 +8,7 @@
 name: Build and deploy paas-ui
 
 on:
-  push:
-    paths:
-      - 'Week5_Frontend/paas-ui/**'
+  workflow_dispatch:  # manual only; no push trigger
 
 jobs:
   build-and-push:

@@ -1,8 +1,8 @@
 import { Page, expect } from '@playwright/test';
 
-const baseURL = 'https://kevin-sinn.runs.onstackit.cloud/';
-const username = 'kevin';
-const password = 'KevinsPassword';
+const baseURL = process.env.BASE_URL || 'https://kevin-sinn.runs.onstackit.cloud/';
+const username = process.env.E2E_USERNAME || 'kevin';
+const password = process.env.E2E_PASSWORD || 'KevinsPassword';
 
 export { baseURL };
 

@@ -457,7 +457,27 @@ func splitPath(path string) []string {
 	return strings.Split(path, ".")
 }
 
+// podContainersReady returns true only when all containers in the pod are ready (1/1 running).
+func podContainersReady(obj map[string]interface{}) bool {
+	containerStatuses, found, _ := unstructured.NestedSlice(obj, "status", "containerStatuses")
+	if !found || len(containerStatuses) == 0 {
+		return false
+	}
+	for _, cs := range containerStatuses {
+		statusMap, ok := cs.(map[string]interface{})
+		if !ok {
+			return false
+		}
+		ready, _, _ := unstructured.NestedBool(statusMap, "ready")
+		if !ready {
+			return false
+		}
+	}
+	return true
+}
+
 // inferStatusFromPods infers instance status from pod phases when the RedisFailover CR has no status.
+// Returns "running" only when ALL pods are Running and all their containers are ready (1/1).
 // Lists pods with label app.kubernetes.io/instance=<name> (Spotahome operator convention).
 func (s *RedisFailoverStore) inferStatusFromPods(ctx context.Context, name string) string {
 	ns := namespaceFromContext(ctx, s.namespace)
@@ -476,18 +496,16 @@ func (s *RedisFailoverStore) inferStatusFromPods(ctx context.Context, name strin
 	if err != nil || len(list.Items) == 0 {
 		return "unknown"
 	}
-	hasPending := false
-	hasRunning := false
-	hasFailed := false
+	allRunningAndReady := true
 	for i := range list.Items {
+		obj := list.Items[i].Object
 		// status.phase is top-level for pods
-		phase, _, _ := unstructured.NestedString(list.Items[i].Object, "status", "phase")
+		phase, _, _ := unstructured.NestedString(obj, "status", "phase")
 
 		// If phase is empty, check container statuses
 		if phase == "" {
-			containerStatuses, found, _ := unstructured.NestedSlice(list.Items[i].Object, "status", "containerStatuses")
+			containerStatuses, found, _ := unstructured.NestedSlice(obj, "status", "containerStatuses")
 			if found && len(containerStatuses) > 0 {
-				// Assume running if at least one container is running
 				for _, cs := range containerStatuses {
 					if statusMap, ok := cs.(map[string]interface{}); ok {
 						if _, running := statusMap["state"].(map[string]interface{})["running"]; running {
@@ -500,22 +518,20 @@ func (s *RedisFailoverStore) inferStatusFromPods(ctx context.Context, name strin
 		}
 
 		switch phase {
-		case "Running":
-			hasRunning = true
-		case "Pending":
-			hasPending = true
 		case "Failed":
-			hasFailed = true
+			return "failed"
+		case "Pending":
+			allRunningAndReady = false
+		case "Running":
+			if !podContainersReady(obj) {
+				allRunningAndReady = false // pod is 0/1, not ready yet
+			}
+		default:
+			allRunningAndReady = false
 		}
 	}
-	if hasFailed {
-		return "failed"
-	}
-	if hasPending {
-		return "pending"
-	}
-	if hasRunning {
+	if allRunningAndReady {
 		return "running"
 	}
-	return "unknown"
+	return "pending"
 }

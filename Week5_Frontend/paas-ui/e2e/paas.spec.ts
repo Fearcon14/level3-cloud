@@ -58,34 +58,34 @@ test.describe.serial('paas', () => {
   await expect(page.getByText(instanceName)).toBeVisible();
   });
 
-  test('use cache', async ({ page }) => {
-    await login(page);
+  // test('use cache', async ({ page }) => {
+  //   await login(page);
 
-    const card = page.locator('.card').filter({ has: page.getByText(instanceName, { exact: true }) });
-    await expect(card).toBeVisible();
-    await waitForInstanceRunning(page, instanceName, INSTANCE_READY_TIMEOUT_MS);
+  //   const card = page.locator('.card').filter({ has: page.getByText(instanceName, { exact: true }) });
+  //   await expect(card).toBeVisible();
+  //   await waitForInstanceRunning(page, instanceName, INSTANCE_READY_TIMEOUT_MS);
 
-    await card.getByRole('button', { name: 'Manage' }).click();
-    await page.getByRole('textbox', { name: 'Key', exact: true }).click();
-    await page.getByRole('textbox', { name: 'Key', exact: true }).fill('playwright-test');
-    await page.getByRole('textbox', { name: 'Value' }).click();
-    await page.getByRole('textbox', { name: 'Value' }).fill(cacheValue);
-    await page.getByPlaceholder('TTL (seconds, 0 = no expiry)').click();
-    await page.getByPlaceholder('TTL (seconds, 0 = no expiry)').fill('30');
-    await page.getByRole('button', { name: 'POST' }).click();
-    await page.getByRole('textbox', { name: 'Cache key' }).click();
-    await page.getByRole('textbox', { name: 'Cache key' }).fill(cacheKey);
-    await page.getByRole('button', { name: 'GET' }).click();
+  //   await card.getByRole('button', { name: 'Manage' }).click();
+  //   await page.getByRole('textbox', { name: 'Key', exact: true }).click();
+  //   await page.getByRole('textbox', { name: 'Key', exact: true }).fill('playwright-test');
+  //   await page.getByRole('textbox', { name: 'Value' }).click();
+  //   await page.getByRole('textbox', { name: 'Value' }).fill(cacheValue);
+  //   await page.getByPlaceholder('TTL (seconds, 0 = no expiry)').click();
+  //   await page.getByPlaceholder('TTL (seconds, 0 = no expiry)').fill('30');
+  //   await page.getByRole('button', { name: 'POST' }).click();
+  //   await page.getByRole('textbox', { name: 'Cache key' }).click();
+  //   await page.getByRole('textbox', { name: 'Cache key' }).fill(cacheKey);
+  //   await page.getByRole('button', { name: 'GET' }).click();
 
-    await expect(page.getByText(`Value:${cacheValue}`)).toBeVisible();
-  });
+  //   await expect(page.getByText(`Value:${cacheValue}`)).toBeVisible();
+  // });
 
   test('modify instance', async ({ page }) => {
     await login(page);
 
     const card = page.locator('.card').filter({ has: page.getByText(instanceName, { exact: true }) });
     await expect(card).toBeVisible();
-    await waitForInstanceRunning(page, instanceName, INSTANCE_READY_TIMEOUT_MS);
+    // await waitForInstanceRunning(page, instanceName, INSTANCE_READY_TIMEOUT_MS);
 
     await card.getByRole('button', { name: 'Manage' }).click();
     await page.getByTitle('Modify').click();

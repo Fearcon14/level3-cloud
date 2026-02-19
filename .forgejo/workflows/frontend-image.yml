@@ -1,0 +1,54 @@
+# CI/CD for Week5_Frontend/paas-ui: build image, push to STACKIT Container Registry, rollout on SKE.
+# Runs only when files under Week5_Frontend/paas-ui/ change.
+#
+# Uses the same secrets as api-image (Settings → Secrets and variables → Actions):
+#   STACKIT_REGISTRY_USER, STACKIT_REGISTRY_PASSWORD, KUBECONFIG or KUBECONFIG_B64
+
+name: Build and deploy paas-ui
+
+on:
+  push:
+    paths:
+      - 'Week5_Frontend/paas-ui/**'
+
+jobs:
+  build-and-push:
+    runs-on: [stackit-docker]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Log in to STACKIT Container Registry
+        run: |
+          echo "${{ secrets.STACKIT_REGISTRY_PASSWORD }}" | docker login -u "${{ secrets.STACKIT_REGISTRY_USER }}" --password-stdin registry.onstackit.cloud
+
+      - name: Build and push image
+        run: |
+          docker build --platform linux/amd64 -t registry.onstackit.cloud/kevin-sinn/paas-ui:latest Week5_Frontend/paas-ui
+          docker push registry.onstackit.cloud/kevin-sinn/paas-ui:latest
+
+  deploy-rollout:
+    runs-on: [stackit-ubuntu-20]
+    needs: build-and-push
+    steps:
+      - name: Install kubectl
+        run: |
+          curl -sLO "https://dl.k8s.io/release/$(curl -L -s https://dl.k8s.io/release/stable.txt)/bin/linux/amd64/kubectl"
+          chmod +x kubectl
+          sudo mv kubectl /usr/local/bin/
+
+      - name: Set up kubeconfig
+        run: |
+          mkdir -p ~/.kube
+          if [ -n "${{ secrets.KUBECONFIG_B64 }}" ]; then
+            echo "${{ secrets.KUBECONFIG_B64 }}" | base64 -d > ~/.kube/config
+          else
+            printf '%s' "${{ secrets.KUBECONFIG }}" > ~/.kube/config
+          fi
+          chmod 600 ~/.kube/config
+
+      - name: Rollout restart deployment
+        run: |
+          export KUBECONFIG=~/.kube/config
+          kubectl rollout restart deployment/paas-ui -n "${{ vars.K8S_NAMESPACE || 'default' }}"
+          kubectl rollout status deployment/paas-ui -n "${{ vars.K8S_NAMESPACE || 'default' }}" --timeout=120s

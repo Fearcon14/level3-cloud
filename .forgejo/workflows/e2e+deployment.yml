@@ -1,10 +1,9 @@
-# Run e2e tests against API + frontend running locally on the runner; only on success push images and rollout.
+# Run e2e tests against API (go run) + frontend (Vite dev server) on the runner; only on success push images and rollout.
+# No Docker for e2e services — avoids bind-mount issues. Vite proxies /api to localhost:8080.
+#
 # Trigger: push to Week4_API/** or Week5_Frontend/paas-ui/**
-#
-# Workspace path: Forgejo uses forgejo.workspace; some runners also set github.workspace. We use both.
-#
 # Required secrets: STACKIT_REGISTRY_USER, STACKIT_REGISTRY_PASSWORD, KUBECONFIG or KUBECONFIG_B64
-# Optional vars: K8S_NAMESPACE (default: default). E2E_USERNAME/E2E_PASSWORD: set in auth.ts or via env if needed.
+# Optional vars: K8S_NAMESPACE (default: default).
 
 name: E2E then build, push and deploy
 
@@ -22,7 +21,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up kubeconfig for API container
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.23'
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 'lts/*'
+
+      - name: Set up kubeconfig for API
         run: |
           mkdir -p .kube
           if [ -n "${{ secrets.KUBECONFIG_B64 }}" ]; then
@@ -32,40 +41,45 @@ jobs:
           fi
           chmod 600 .kube/config
 
-      - name: Build API and frontend images (local only)
+      - name: Install frontend dependencies
+        run: npm ci
+        working-directory: Week5_Frontend/paas-ui
+
+      - name: Start API and frontend, run e2e
+        run: |
+          REPO_ROOT="${{ forgejo.workspace || github.workspace }}"
+          export KUBECONFIG="${REPO_ROOT}/.kube/config"
+
+          (cd Week4_API && go run ./cmd/api) &
+          API_PID=$!
+          (cd Week5_Frontend/paas-ui && npm run dev) &
+          UI_PID=$!
+
+          echo "Waiting for API on :8080..."
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/instances 2>/dev/null || true)
+            [ "$code" = "401" ] || [ "$code" = "200" ] && break
+            sleep 2
+          done
+          curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/instances
+
+          echo "Waiting for frontend on :5173..."
+          for i in $(seq 1 30); do
+            curl -sf http://localhost:5173/ >/dev/null && break
+            sleep 2
+          done
+          curl -sf http://localhost:5173/
+
+          cd Week5_Frontend/paas-ui
+          npx playwright install --with-deps
+          BASE_URL=http://localhost:5173 CI=1 npx playwright test
+
+          kill $API_PID $UI_PID 2>/dev/null || true
+
+      - name: Build API and frontend images
         run: |
           docker build --platform linux/amd64 -t paas-api:test Week4_API
           docker build --platform linux/amd64 -t paas-ui:test Week5_Frontend/paas-ui
-
-      - name: Start API and frontend for e2e
-        run: |
-          REPO_ROOT="${{ forgejo.workspace || github.workspace }}"
-          docker network create e2e-net || true
-          docker run -d --network e2e-net --name api \
-            -v "${REPO_ROOT}/.kube/config:/app/kubeconfig:ro" \
-            -e KUBECONFIG=/app/kubeconfig \
-            paas-api:test
-          docker run -d --network e2e-net --name frontend \
-            -v "${REPO_ROOT}/Week5_Frontend/paas-ui/nginx.e2e.conf:/etc/nginx/conf.d/default.conf:ro" \
-            -p 3000:80 \
-            paas-ui:test
-
-      - name: Wait for frontend
-        run: |
-          for i in $(seq 1 30); do
-            curl -sf http://localhost:3000/ && break
-            sleep 2
-          done
-          curl -sf http://localhost:3000/
-
-      - name: Run Playwright e2e
-        run: |
-          docker run --rm --network host \
-            -v "${{ forgejo.workspace || github.workspace }}:/app" -w /app/Week5_Frontend/paas-ui \
-            -e BASE_URL=http://localhost:3000 \
-            -e CI=1 \
-            mcr.microsoft.com/playwright:latest \
-            sh -c "npm ci && npx playwright install --with-deps && npx playwright test"
 
       - name: Log in to STACKIT Container Registry
         run: |

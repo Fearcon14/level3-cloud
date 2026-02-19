@@ -27,4 +27,8 @@ terraform-provider-stackit/**/*
 *.pem
 *.json
 
+# Allow npm package files (needed for CI and installs)
+!**/package.json
+!**/package-lock.json
+
 .vscode/

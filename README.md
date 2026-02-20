@@ -143,7 +143,5 @@ Build a user-facing interface and expose the PaaS product securely via the web, 
 
 ## Week 6 –  Implementation of Observability and Audit Logging
 
-## Week 6
-
 _To be updated..._
 

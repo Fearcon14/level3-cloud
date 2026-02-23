@@ -14,7 +14,12 @@ This directory contains the Argo CD–driven setup for internal monitoring on th
 
 1. Apply Terraform (or ensure the `monitoring` Argo CD Application exists and points at `Week6_Monitoring/k8s`).
 2. Argo CD syncs `Week6_Monitoring/k8s`, creating the `monitoring` namespace, the Grafana secret, and the `kube-prometheus-stack` Application.
-3. Argo CD then syncs the `kube-prometheus-stack` Application, which installs the Helm chart into `monitoring`.
+3. **One-time: install Prometheus Operator CRDs** (avoids "metadata.annotations: Too long" when the chart syncs). Use **server-side apply** so kubectl does not add the large `last-applied-configuration` annotation:
+   ```bash
+   helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
+   helm show crds prometheus-community/kube-prometheus-stack --version 67.0.0 | kubectl apply -f - --server-side --force-conflicts
+   ```
+4. Argo CD then syncs the `kube-prometheus-stack` Application, which installs the Helm chart into `monitoring`. The Application uses `skipCrds: true` so it does not apply CRDs (they are already installed above).
 
 ## Grafana
 

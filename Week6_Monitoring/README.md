@@ -43,6 +43,10 @@ To expose Grafana via Ingress with TLS (e.g. cert-manager):
 2. Add annotations for cert-manager if needed, e.g. `cert-manager.io/cluster-issuer: letsencrypt-prod`.
 3. Re-sync the `kube-prometheus-stack` Application.
 
+## Admission webhook (TLS "bad certificate")
+
+If the Prometheus Operator logs show `tls: bad certificate` and Prometheus/Alertmanager never get StatefulSets, the admission webhook's TLS is failing. The stack is configured with `prometheusOperator.admissionWebhooks.failurePolicy: Ignore` so the API server still admits requests when the webhook fails; after syncing, the operator should reconcile and create Prometheus and Alertmanager pods.
+
 ## Redis operator metrics
 
 The Redis operator in `Week3_SKE/kubernetes/spotahome_redis_operator/operator.yaml` includes a ServiceMonitor and PodMonitor with label `release: kube-prometheus-stack` so Prometheus (with `serviceMonitorSelectorNilUsesHelmValues: false`) discovers and scrapes its metrics.

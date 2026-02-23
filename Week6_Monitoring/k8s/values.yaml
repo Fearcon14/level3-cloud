@@ -2,6 +2,11 @@
 # This file is the reference for the values applied via the Argo CD Application in application.yaml.
 # When updating, keep application.yaml spec.source.helm.values in sync with this file.
 
+# Avoid "tls: bad certificate" on admission webhook: if webhook fails, API server still admits the request.
+prometheusOperator:
+  admissionWebhooks:
+    failurePolicy: Ignore
+
 prometheus:
   prometheusSpec:
     storageSpec:

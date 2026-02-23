@@ -21,6 +21,9 @@ spec:
     helm:
       skipCrds: true
       values: |
+        prometheusOperator:
+          admissionWebhooks:
+            failurePolicy: Ignore
         prometheus:
           prometheusSpec:
             storageSpec:

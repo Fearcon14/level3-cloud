@@ -54,6 +54,10 @@ spec:
               type: loki
               url: http://loki-gateway.monitoring.svc.cluster.local
               access: proxy
+              jsonData:
+                httpHeaderName1: X-Scope-OrgID
+              secureJsonData:
+                httpHeaderValue1: "1"
           persistence:
             enabled: true
             size: 10Gi

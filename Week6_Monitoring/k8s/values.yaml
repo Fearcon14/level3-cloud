@@ -19,9 +19,15 @@ prometheus:
     retention: 15d
     # Select ServiceMonitors in all namespaces (e.g. default namespace Redis operator).
     serviceMonitorSelectorNilUsesHelmValues: false
-    serviceMonitorNamespaceSelector: {}
+    serviceMonitorNamespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: Exists
     podMonitorSelectorNilUsesHelmValues: false
-    podMonitorNamespaceSelector: {}
+    podMonitorNamespaceSelector:
+      matchExpressions:
+      - key: kubernetes.io/metadata.name
+        operator: Exists
 
 grafana:
   admin:

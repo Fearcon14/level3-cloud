@@ -35,9 +35,15 @@ spec:
                       storage: 10Gi
             retention: 15d
             serviceMonitorSelectorNilUsesHelmValues: false
-            serviceMonitorNamespaceSelector: {}
+            serviceMonitorNamespaceSelector:
+              matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: Exists
             podMonitorSelectorNilUsesHelmValues: false
-            podMonitorNamespaceSelector: {}
+            podMonitorNamespaceSelector:
+              matchExpressions:
+              - key: kubernetes.io/metadata.name
+                operator: Exists
         grafana:
           admin:
             existingSecret: grafana-admin

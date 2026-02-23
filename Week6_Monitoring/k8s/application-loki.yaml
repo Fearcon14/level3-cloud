@@ -65,6 +65,9 @@ spec:
           replicas: 0
         bloomGateway:
           replicas: 0
+        # Disable memcached chunks cache (default requests ~9.8Gi memory) so Loki schedules on small clusters.
+        chunksCache:
+          replicas: 0
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

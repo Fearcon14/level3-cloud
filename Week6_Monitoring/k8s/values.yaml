@@ -10,7 +10,7 @@ prometheus:
           accessModes: ["ReadWriteOnce"]
           resources:
             requests:
-              storage: 50Gi
+              storage: 10Gi
     retention: 15d
     # Select ServiceMonitors in all namespaces (e.g. default namespace Redis operator).
     serviceMonitorSelectorNilUsesHelmValues: false

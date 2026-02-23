@@ -18,6 +18,14 @@ const handleLogout = () => {
         <span class="navbar-brand">PaaS Dashboard</span>
         <div class="d-flex align-items-center">
           <span class="me-3">Hello, <strong>{{ userStore.username }}</strong></span>
+          <a
+            href="https://grafana.kevin-sinn.runs.onstackit.cloud/"
+            target="_blank"
+            rel="noopener noreferrer"
+            class="btn btn-outline-secondary btn-sm me-2"
+          >
+            Open Grafana
+          </a>
           <button @click="handleLogout" class="btn btn-outline-danger btn-sm">Logout</button>
         </div>
       </div>

@@ -19,7 +19,7 @@ This directory contains the Argo CD–driven setup for internal monitoring on th
    helm repo add prometheus-community https://prometheus-community.github.io/helm-charts
    helm show crds prometheus-community/kube-prometheus-stack --version 67.0.0 | kubectl apply -f - --server-side --force-conflicts
    ```
-4. Argo CD then syncs the `kube-prometheus-stack` Application, which installs the Helm chart into `monitoring`. The Application uses `skipCrds: true` so it does not apply CRDs (they are already installed above).
+4. Argo CD then syncs the `kube-prometheus-stack` Application, which installs the Helm chart into `monitoring`. The Application uses `skipCrds: true` and `ServerSideApply=true` so CRDs (and other large resources) do not hit the 262144-byte annotation limit.
 
 ## Grafana
 

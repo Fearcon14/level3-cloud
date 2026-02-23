@@ -3,8 +3,8 @@
 # The Helm release name is the Application name (kube-prometheus-stack); ServiceMonitors in other
 # namespaces (e.g. Redis operator) should use label release: kube-prometheus-stack to be selected.
 #
-# skipCrds: true avoids "metadata.annotations: Too long" on CRDs (Helm embeds large metadata).
-# Install the Prometheus Operator CRDs once before the first sync (see README).
+# skipCrds: true + ServerSideApply=true avoid "metadata.annotations: Too long" on CRDs.
+# Optional: install CRDs once with server-side apply before first sync (see README).
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -63,3 +63,4 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true

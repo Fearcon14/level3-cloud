@@ -1,7 +1,9 @@
-# Kustomize ensures apply order: namespace first, then secret, then Argo CD Application, then ServiceMonitor.
+# Kustomize ensures apply order: namespace first, then secret, then Argo CD Applications, then ServiceMonitor.
 resources:
   - namespace.yaml
   - grafana-admin-secret.yaml
   - application.yaml
+  - application-loki.yaml
+  - application-promtail.yaml
   - servicemonitor-redis-operator.yaml
   - prometheus-rbac-default-ns.yaml

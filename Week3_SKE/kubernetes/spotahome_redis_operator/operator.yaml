@@ -132,37 +132,3 @@ spec:
     targetPort: metrics
   selector:
     app: redisoperator
----
-
-# ServiceMonitor and PodMonitor require Prometheus Operator CRDs (monitoring.coreos.com).
-# release label must match the kube-prometheus-stack Argo CD Application name (kube-prometheus-stack).
-apiVersion: monitoring.coreos.com/v1
-kind: ServiceMonitor
-metadata:
-  name: redis-operator-metrics
-  labels:
-    app: redisoperator
-    release: kube-prometheus-stack
-spec:
-  selector:
-    matchLabels:
-      app: redisoperator
-  endpoints:
-  - port: metrics
-  namespaceSelector:
-    matchNames:
-    - default
----
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: redisoperator
-  labels:
-    app: redisoperator
-    release: kube-prometheus-stack
-spec:
-  selector:
-    matchLabels:
-      app: redisoperator
-  podMetricsEndpoints:
-  - port: metrics

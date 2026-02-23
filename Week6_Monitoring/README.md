@@ -1,13 +1,15 @@
-# Week 6 – Internal Monitoring (Prometheus + Grafana)
+# Week 6 – Internal Monitoring (Prometheus + Grafana + Loki)
 
-This directory contains the Argo CD–driven setup for internal monitoring on the SKE cluster using the [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) Helm chart (Prometheus, Grafana, node-exporter, kube-state-metrics).
+This directory contains the Argo CD–driven setup for internal monitoring on the SKE cluster using the [kube-prometheus-stack](https://github.com/prometheus-community/helm-charts/tree/main/charts/kube-prometheus-stack) Helm chart (Prometheus, Grafana, node-exporter, kube-state-metrics), plus [Grafana Loki](https://grafana.com/docs/loki/latest/) for log aggregation and [Promtail](https://grafana.com/docs/loki/latest/send-data/promtail/) for collecting pod logs.
 
 ## Layout
 
 - **k8s/** – Manifests synced by the Terraform-managed Argo CD Application (path `Week6_Monitoring/k8s`):
   - `namespace.yaml` – `monitoring` namespace
   - `grafana-admin-secret.yaml` – Grafana admin credentials (use a strong password in production)
-  - `application.yaml` – Argo CD Application that deploys kube-prometheus-stack from the Prometheus Community Helm repo
+  - `application.yaml` – Argo CD Application that deploys kube-prometheus-stack (includes Grafana datasource for Loki)
+  - `application-loki.yaml` – Argo CD Application that deploys Loki (monolithic, single replica, MinIO storage)
+  - `application-promtail.yaml` – Argo CD Application that deploys Promtail (DaemonSet, sends pod logs to Loki)
   - `values.yaml` – Reference values for the stack (keep in sync with `application.yaml` helm values)
 
 ## Bootstrap
@@ -50,3 +52,11 @@ If the Prometheus Operator logs show `tls: bad certificate` and Prometheus/Alert
 ## Redis operator metrics
 
 The Redis operator in `Week3_SKE/kubernetes/spotahome_redis_operator/operator.yaml` includes a ServiceMonitor and PodMonitor with label `release: kube-prometheus-stack` so Prometheus (with `serviceMonitorSelectorNilUsesHelmValues: false`) discovers and scrapes its metrics.
+
+## Loki (log aggregation)
+
+**Loki** stores and serves application logs; you query them in Grafana with **LogQL** (label-based, similar to Prometheus). **Promtail** runs as a DaemonSet and collects pod logs from the nodes, then pushes them to Loki.
+
+- **Using Loki in Grafana**: Open **Explore** (or the compass icon), select the **Loki** datasource, and run LogQL queries (e.g. `{namespace="default"}` or `{app="redisoperator"} |= "error"`). You can also add Loki panels to dashboards.
+- **Log collector config**: Promtail is configured via `application-promtail.yaml`; the Loki push URL is `http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push`. Default scrape config discovers Kubernetes pods and adds labels (namespace, pod, container). See [Send data to Loki](https://grafana.com/docs/loki/latest/send-data/) and [LogQL](https://grafana.com/docs/loki/latest/query/) for more.
+- **Verify**: After sync, `kubectl get pods -n monitoring` should show Loki (and MinIO) and Promtail. In Grafana, Explore → Loki → run `{namespace="default"}` to see logs once Promtail has shipped some.

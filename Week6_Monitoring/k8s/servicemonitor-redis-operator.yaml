@@ -1,0 +1,18 @@
+# ServiceMonitor in monitoring namespace so Prometheus (which watches monitoring) discovers it.
+# Scrapes the Redis operator metrics Service in the default namespace.
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: redis-operator-metrics
+  namespace: monitoring
+  labels:
+    release: kube-prometheus-stack
+spec:
+  selector:
+    matchLabels:
+      app: redisoperator
+  namespaceSelector:
+    matchNames:
+      - default
+  endpoints:
+    - port: metrics

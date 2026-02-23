@@ -143,5 +143,39 @@ Build a user-facing interface and expose the PaaS product securely via the web, 
 
 ## Week 6 –  Implementation of Observability and Audit Logging
 
-_To be updated..._
+📚 **[Week 6 Notion Page](https://www.notion.so/Week-6-310f7889a83b80869a04de3601039686?source=copy_link)**
+
+### Goal
+
+Enable production-grade operations through observability and audit logging.
+
+### Scope
+
+- [ ] **Internal Monitoring**: Persistent telemetry data that the product operator can use for monitoring
+    - [ ] * Integration of Prometheus and Grafana for monitoring the health of Kubernetes clusters and application performance
+    - [ ] * Setup of Loki for collecting and analyzing application logs
+
+- [ ] **User-Centric Monitoring:** Persistently stored logs that users can retrieve for their instances via the UI (or API)
+    - [ ] * Implementation of an Audit Logging system for recording user actions (creation/modification/deletion of an instance or access data or similar)
+    - [ ] * Implementation of Service Logs with relevant information for the user for security and compliance (asynchronous status changes or similar information that might be of interest to the user)
+
+### Bonus
+
+- [ ] **Development of a Golang SDK for the PaaS Product**
+
+- [ ] * Creation of a Golang SDK that simplifies interaction with the PaaS product's API
+- [ ] * Implementation of authentication and authorization mechanisms within the SDK
+- [ ] * Provision of clear documentation and examples for using the SDK
+
+## Final Result
+
+By the end of this track, you will have:
+
+* **Designed and operated a complete infrastructure stack** — from raw IaaS with OpenStack to a functional PaaS running on Kubernetes
+* **Provisioned and managed Kubernetes clusters** using Infrastructure as Code with Terraform
+* **Built and deployed a Kubernetes-native PaaS product**, including CRDs and Operators
+* **Exposed the platform through a production-ready RESTful API** for product lifecycle management
+* **Developed a secure, user-facing Web UI** that interfaces with the API and runs on Kubernetes with proper ingress and SSL
+* **Implemented observability and audit logging**, enabling platform-level monitoring, logging, and traceability for both operators and users
+
 

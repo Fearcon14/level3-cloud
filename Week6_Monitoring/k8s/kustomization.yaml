@@ -1,0 +1,5 @@
+# Kustomize ensures apply order: namespace first, then secret, then Argo CD Application.
+resources:
+  - namespace.yaml
+  - grafana-admin-secret.yaml
+  - application.yaml

@@ -1,0 +1,39 @@
+# Values for kube-prometheus-stack (Prometheus, Grafana, node-exporter, kube-state-metrics).
+# This file is the reference for the values applied via the Argo CD Application in application.yaml.
+# When updating, keep application.yaml spec.source.helm.values in sync with this file.
+
+prometheus:
+  prometheusSpec:
+    storageSpec:
+      volumeClaimTemplate:
+        spec:
+          accessModes: ["ReadWriteOnce"]
+          resources:
+            requests:
+              storage: 50Gi
+    retention: 15d
+    # Select ServiceMonitors in all namespaces (e.g. default namespace Redis operator).
+    serviceMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorNamespaceSelector: {}
+    podMonitorSelectorNilUsesHelmValues: false
+    podMonitorNamespaceSelector: {}
+
+grafana:
+  admin:
+    existingSecret: grafana-admin
+    userKey: admin-user
+    passwordKey: admin-password
+  persistence:
+    enabled: true
+    size: 10Gi
+  ingress:
+    enabled: true
+    ingressClassName: nginx
+    hosts:
+      - grafana.kevin-sinn.runs.onstackit.cloud
+    tls:
+      - secretName: grafana-tls
+        hosts:
+          - grafana.kevin-sinn.runs.onstackit.cloud
+    annotations:
+      cert-manager.io/cluster-issuer: letsencrypt-prod

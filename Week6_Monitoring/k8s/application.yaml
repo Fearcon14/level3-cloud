@@ -1,0 +1,61 @@
+# Argo CD Application that deploys kube-prometheus-stack from the Prometheus Community Helm repo.
+# This Application is created when the Terraform-managed Application (path Week6_Monitoring/k8s) syncs.
+# The Helm release name is the Application name (kube-prometheus-stack); ServiceMonitors in other
+# namespaces (e.g. Redis operator) should use label release: kube-prometheus-stack to be selected.
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: kube-prometheus-stack
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://prometheus-community.github.io/helm-charts
+    chart: kube-prometheus-stack
+    targetRevision: "67.0.0"
+    helm:
+      values: |
+        prometheus:
+          prometheusSpec:
+            storageSpec:
+              volumeClaimTemplate:
+                spec:
+                  accessModes: ["ReadWriteOnce"]
+                  resources:
+                    requests:
+                      storage: 50Gi
+            retention: 15d
+            serviceMonitorSelectorNilUsesHelmValues: false
+            serviceMonitorNamespaceSelector: {}
+            podMonitorSelectorNilUsesHelmValues: false
+            podMonitorNamespaceSelector: {}
+        grafana:
+          admin:
+            existingSecret: grafana-admin
+            userKey: admin-user
+            passwordKey: admin-password
+          persistence:
+            enabled: true
+            size: 10Gi
+          ingress:
+            enabled: true
+            ingressClassName: nginx
+            hosts:
+              - grafana.kevin-sinn.runs.onstackit.cloud
+            tls:
+              - secretName: grafana-tls
+                hosts:
+                  - grafana.kevin-sinn.runs.onstackit.cloud
+            annotations:
+              cert-manager.io/cluster-issuer: letsencrypt-prod
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: monitoring
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

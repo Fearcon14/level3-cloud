@@ -1,0 +1,8 @@
+# Namespace for Prometheus, Grafana, and related monitoring components.
+# Created first so Grafana secret and the stack can be deployed into it.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: monitoring
+  labels:
+    app.kubernetes.io/name: monitoring

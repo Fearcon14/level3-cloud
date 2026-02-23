@@ -232,3 +232,39 @@ resource "kubernetes_manifest" "argocd_paas_ui_app" {
   }
 }
 
+# Argo CD Application for Week 6 internal monitoring (Prometheus + Grafana).
+# Syncs Week6_Monitoring/k8s/: namespace, Grafana admin secret, and the Application
+# that deploys kube-prometheus-stack from the Prometheus Community Helm repo.
+resource "kubernetes_manifest" "argocd_monitoring_app" {
+  depends_on = [
+    helm_release.argocd,
+  ]
+
+  manifest = {
+    apiVersion = "argoproj.io/v1alpha1"
+    kind       = "Application"
+    metadata = {
+      name      = "monitoring"
+      namespace = "argocd"
+    }
+    spec = {
+      project = "default"
+      source = {
+        repoURL        = var.git_repo_url
+        targetRevision = var.git_revision
+        path           = "Week6_Monitoring/k8s"
+      }
+      destination = {
+        server    = "https://kubernetes.default.svc"
+        namespace = "default"
+      }
+      syncPolicy = {
+        automated = {
+          prune    = true
+          selfHeal = true
+        }
+      }
+    }
+  }
+}
+

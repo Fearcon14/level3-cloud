@@ -1,5 +1,5 @@
-# Ingress for PaaS: Web UI at / and API at /api. Requires ingress-nginx (or another controller with class "nginx").
-# Access via host "paas-api" (add LB IP to /etc/hosts or point DNS). Same host serves UI and API.
+# Ingress for PaaS: Web UI at / and API at /api. Requires ingress-nginx (class "nginx").
+# Host: kevin-sinn.runs.onstackit.cloud. TLS secret paas-tls (e.g. from cert-manager).
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:

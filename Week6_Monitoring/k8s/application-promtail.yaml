@@ -21,6 +21,7 @@ spec:
         config:
           clients:
             - url: http://loki-gateway.monitoring.svc.cluster.local/loki/api/v1/push
+              tenant_id: "1"
   destination:
     server: https://kubernetes.default.svc
     namespace: monitoring

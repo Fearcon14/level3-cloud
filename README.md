@@ -151,9 +151,9 @@ Enable production-grade operations through observability and audit logging.
 
 ### Scope
 
-- [ ] **Internal Monitoring**: Persistent telemetry data that the product operator can use for monitoring
-    - [ ] * Integration of Prometheus and Grafana for monitoring the health of Kubernetes clusters and application performance
-    - [ ] * Setup of Loki for collecting and analyzing application logs
+- [x] **Internal Monitoring**: Persistent telemetry data that the product operator can use for monitoring
+    - [x] * Integration of Prometheus and Grafana for monitoring the health of Kubernetes clusters and application performance
+    - [x] * Setup of Loki for collecting and analyzing application logs
 
 - [ ] **User-Centric Monitoring:** Persistently stored logs that users can retrieve for their instances via the UI (or API)
     - [ ] * Implementation of an Audit Logging system for recording user actions (creation/modification/deletion of an instance or access data or similar)

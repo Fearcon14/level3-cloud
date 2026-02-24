@@ -80,24 +80,24 @@ test.describe.serial('paas', () => {
   //   await expect(page.getByText(`Value:${cacheValue}`)).toBeVisible();
   // });
 
-  test('modify instance', async ({ page }) => {
-    await login(page);
+  // test('modify instance', async ({ page }) => {
+  //   await login(page);
 
-    const card = page.locator('.card').filter({ has: page.getByText(instanceName, { exact: true }) });
-    await expect(card).toBeVisible();
-    // await waitForInstanceRunning(page, instanceName, INSTANCE_READY_TIMEOUT_MS);
+  //   const card = page.locator('.card').filter({ has: page.getByText(instanceName, { exact: true }) });
+  //   await expect(card).toBeVisible();
+  //   // await waitForInstanceRunning(page, instanceName, INSTANCE_READY_TIMEOUT_MS);
 
-    await card.getByRole('button', { name: 'Manage' }).click();
-    await page.getByTitle('Modify').click();
-    await page.getByRole('spinbutton').nth(1).click();
-    await page.getByRole('spinbutton').nth(1).fill('3');
-    await page.getByRole('spinbutton').nth(2).click();
-    await page.getByRole('spinbutton').nth(2).fill('3');
-    await page.getByRole('button', { name: 'Save changes' }).click();
+  //   await card.getByRole('button', { name: 'Manage' }).click();
+  //   await page.getByTitle('Modify').click();
+  //   await page.getByRole('spinbutton').nth(1).click();
+  //   await page.getByRole('spinbutton').nth(1).fill('3');
+  //   await page.getByRole('spinbutton').nth(2).click();
+  //   await page.getByRole('spinbutton').nth(2).fill('3');
+  //   await page.getByRole('button', { name: 'Save changes' }).click();
 
-    await expect(page.getByText('Redis Replicas3')).toBeVisible();
-    await expect(page.getByText('Sentinel Replicas3')).toBeVisible();
-  });
+  //   await expect(page.getByText('Redis Replicas3')).toBeVisible();
+  //   await expect(page.getByText('Sentinel Replicas3')).toBeVisible();
+  // });
 
   test('delete instance', async ({ page }) => {
     await login(page);

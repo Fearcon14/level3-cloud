@@ -1,4 +1,5 @@
 # Kustomize ensures apply order: namespace first, then secret, then Argo CD Applications, then ServiceMonitor.
+# Postgres for user-centric logs (audit + service) in namespace paas-logs.
 resources:
   - namespace.yaml
   - grafana-admin-secret.yaml
@@ -7,3 +8,11 @@ resources:
   - application-promtail.yaml
   - servicemonitor-redis-operator.yaml
   - prometheus-rbac-default-ns.yaml
+  # PostgreSQL for PaaS audit and service logs (API connects to postgres.paas-logs.svc.cluster.local)
+  - postgres/namespace.yaml
+  - postgres/secret.yaml
+  - postgres/pvc.yaml
+  - postgres/deployment.yaml
+  - postgres/service.yaml
+  - postgres/schema-configmap.yaml
+  - postgres/init-job.yaml

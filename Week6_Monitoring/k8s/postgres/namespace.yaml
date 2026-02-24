@@ -1,0 +1,8 @@
+# Namespace for user-centric monitoring: PostgreSQL storing audit and service logs.
+# API (in default namespace) connects via postgres.paas-logs.svc.cluster.local.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: paas-logs
+  labels:
+    app.kubernetes.io/name: paas-logs

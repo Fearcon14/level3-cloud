@@ -1,0 +1,13 @@
+# Persistent storage for PostgreSQL data (audit_logs and service_logs).
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-data
+  namespace: paas-logs
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 5Gi
+  # storageClassName: premium-perf1-stackit  # Uncomment on SKE if needed

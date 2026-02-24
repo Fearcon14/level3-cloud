@@ -1,0 +1,40 @@
+# One-time Job to create audit_logs and service_logs tables. Runs after Postgres is ready.
+# Idempotent schema; re-running the Job is safe. Consider removing the Job after first success
+# or use a fixed job name and restartPolicy: Never so it runs only once.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: postgres-schema-init
+  namespace: paas-logs
+spec:
+  ttlSecondsAfterFinished: 300
+  backoffLimit: 10
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: init
+          image: postgres:15-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              until pg_isready -h postgres -U paaslogs -d paaslogs; do
+                echo "Waiting for Postgres..."
+                sleep 2
+              done
+              psql -h postgres -U paaslogs -d paaslogs -f /schema/schema.sql
+          env:
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-credentials
+                  key: POSTGRES_PASSWORD
+          volumeMounts:
+            - name: schema
+              mountPath: /schema
+              readOnly: true
+      volumes:
+        - name: schema
+          configMap:
+            name: postgres-schema

@@ -56,9 +56,11 @@ jobs:
           REPO_ROOT="${{ forgejo.workspace || github.workspace }}"
           export KUBECONFIG="${REPO_ROOT}/.kube/config"
 
+          # API runs locally on the runner (port 8080); it uses KUBECONFIG to talk to the real cluster.
           (cd Week4_API && ./api) &
           API_PID=$!
-          (cd Week5_Frontend/paas-ui && npm run dev) &
+          # Frontend runs locally (port 5173); proxy /api to local API so E2E never hits deployed services.
+          (cd Week5_Frontend/paas-ui && VITE_API_PROXY_TARGET=http://localhost:8080 npm run dev) &
           UI_PID=$!
 
           echo "Waiting for API on :8080..."
@@ -81,7 +83,8 @@ jobs:
           curl -sf http://localhost:5173/
 
           cd Week5_Frontend/paas-ui
-          npx playwright install --with-deps
+          npx playwright install chromium --with-deps
+          # BASE_URL must be the local Vite server; CI=1 restricts to Chromium only.
           BASE_URL=http://localhost:5173 CI=1 npx playwright test
 
           kill $API_PID $UI_PID 2>/dev/null || true

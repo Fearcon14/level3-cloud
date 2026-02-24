@@ -46,6 +46,7 @@ const cacheSetSuccess = ref(false)
 const logs = ref([])
 const logsLoading = ref(false)
 const logsError = ref(null)
+const logsNotConfigured = ref(false) // true when API returned 503 (no log store)
 const logTypeFilter = ref('all') // 'audit' | 'service' | 'all'
 const logLimit = ref(50)
 
@@ -60,9 +61,20 @@ const fetchLogs = async () => {
     const url = `/api/v1/instances/${instance.value.id}/logs${params.toString() ? '?' + params.toString() : ''}`
     const response = await axios.get(url, { headers: authHeaders() })
     logs.value = response.data ?? []
+    logsError.value = null
+    logsNotConfigured.value = false
   } catch (err) {
-    logsError.value = err.response?.data?.error ?? err.message ?? 'Failed to load logs'
+    const status = err.response?.status
+    const msg = err.response?.data?.error ?? err.message ?? 'Failed to load logs'
     logs.value = []
+    // 503 = log store not configured (e.g. no DATABASE_URL); show neutral message, not error
+    if (status === 503) {
+      logsNotConfigured.value = true
+      logsError.value = 'Logs not configured for this environment.'
+    } else {
+      logsNotConfigured.value = false
+      logsError.value = msg
+    }
   } finally {
     logsLoading.value = false
   }
@@ -405,7 +417,7 @@ onMounted(() => {
               <i class="bi bi-arrow-clockwise"></i> {{ logsLoading ? 'Loading…' : 'Refresh' }}
             </button>
           </div>
-          <p v-if="logsError" class="text-danger small mb-2">{{ logsError }}</p>
+          <p v-if="logsError" class="small mb-2" :class="logsNotConfigured ? 'text-muted' : 'text-danger'">{{ logsError }}</p>
           <div v-else-if="logsLoading && logs.length === 0" class="text-center py-4 text-muted small">
             Loading logs…
           </div>

@@ -247,13 +247,22 @@ func (s *RedisFailoverStore) CreateInstance(ctx context.Context, req models.Crea
 	if err := s.EnsureNamespace(ctx, ns); err != nil {
 		return nil, fmt.Errorf("ensure namespace: %w", err)
 	}
-
-	// Generate and create password secret
+	// If the instance CR already exists, do not touch the secret (it may be in use).
+	_, err := s.client.Resource(gvrRedisFailover).Namespace(ns).Get(ctx, req.Name, metav1.GetOptions{})
+	if err == nil {
+		return nil, fmt.Errorf("instance %q already exists", req.Name)
+	}
+	if !k8serrors.IsNotFound(err) {
+		return nil, fmt.Errorf("get redisfailover: %w", err)
+	}
+	// Generate and create password secret. Delete if it already exists (e.g. leftover from a
+	// previous run or failed create) so create is idempotent for E2E and retries.
+	secretName := req.Name + "-auth"
+	_ = s.client.Resource(gvrSecrets).Namespace(ns).Delete(ctx, secretName, metav1.DeleteOptions{})
 	password, err := generatePassword()
 	if err != nil {
 		return nil, fmt.Errorf("generate password: %w", err)
 	}
-	secretName := req.Name + "-auth"
 	if err := s.createSecret(ctx, ns, secretName, password); err != nil {
 		return nil, fmt.Errorf("create secret: %w", err)
 	}

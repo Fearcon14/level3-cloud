@@ -365,7 +365,22 @@ func (a *Application) ListLogs(c *echo.Context) error {
 		a.Logger.Error("list logs failed", "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to list logs"})
 	}
-	return c.JSON(http.StatusOK, entries)
+	// Map to API model for consistent response shape
+	out := make([]models.LogEntry, len(entries))
+	for i := range entries {
+		out[i] = models.LogEntry{
+			ID:         entries[i].ID,
+			Type:       entries[i].Type,
+			Timestamp:  entries[i].Timestamp,
+			Action:     entries[i].Action,
+			Message:    entries[i].Message,
+			Details:    entries[i].Details,
+			Metadata:   entries[i].Metadata,
+			TenantUser: entries[i].TenantUser,
+			InstanceID: entries[i].InstanceID,
+		}
+	}
+	return c.JSON(http.StatusOK, out)
 }
 
 // parseInt parses a decimal integer; returns 0 and non-nil error on failure.

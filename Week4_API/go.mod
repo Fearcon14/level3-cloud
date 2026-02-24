@@ -1,6 +1,6 @@
 module github.com/Fearcon14/level3-cloud/Week4_API
 
-go 1.25.7
+go 1.23
 
 require (
 	github.com/golang-jwt/jwt/v5 v5.3.1

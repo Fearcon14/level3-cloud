@@ -45,23 +45,33 @@ jobs:
         run: npm ci
         working-directory: Week5_Frontend/paas-ui
 
+      - name: Build API binary
+        run: |
+          export KUBECONFIG="${{ forgejo.workspace || github.workspace }}/.kube/config"
+          cd Week4_API
+          go build -o api ./cmd/api
+
       - name: Start API and frontend, run e2e
         run: |
           REPO_ROOT="${{ forgejo.workspace || github.workspace }}"
           export KUBECONFIG="${REPO_ROOT}/.kube/config"
 
-          (cd Week4_API && go run ./cmd/api) &
+          (cd Week4_API && ./api) &
           API_PID=$!
           (cd Week5_Frontend/paas-ui && npm run dev) &
           UI_PID=$!
 
           echo "Waiting for API on :8080..."
+          code=000
           for i in $(seq 1 30); do
             code=$(curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/instances 2>/dev/null || true)
             [ "$code" = "401" ] || [ "$code" = "200" ] && break
             sleep 2
           done
-          curl -s -o /dev/null -w '%{http_code}' http://localhost:8080/api/v1/instances
+          if [ "$code" != "401" ] && [ "$code" != "200" ]; then
+            echo "API did not become ready (got HTTP $code)"
+            exit 1
+          fi
 
           echo "Waiting for frontend on :5173..."
           for i in $(seq 1 30); do

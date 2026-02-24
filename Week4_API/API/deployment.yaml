@@ -32,6 +32,12 @@ spec:
             #   value: "default"
             # - name: PAAS_DEFAULT_STORAGE_CLASS
             #   value: "premium-perf1-stackit"
+            # User-centric logs (audit + service). Create secret: kubectl create secret generic paas-api-env --from-literal=DATABASE_URL='postgres://paaslogs:PASSWORD@postgres.paas-logs.svc.cluster.local:5432/paaslogs' -n default
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: paas-api-env
+                  key: DATABASE_URL
           resources:
             requests:
               memory: "64Mi"

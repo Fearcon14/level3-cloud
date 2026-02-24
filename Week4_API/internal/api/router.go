@@ -18,6 +18,9 @@ func RegisterRoutes(e *echo.Echo, app *Application) {
 	v1.PATCH("/instances/:id", app.PatchInstance)
 	v1.DELETE("/instances/:id", app.DeleteInstance)
 
+	// Logs: instance-scoped audit and service logs (more specific than :id so "logs" is not captured as id)
+	v1.GET("/instances/:id/logs", app.ListLogs)
+
 	// Cache: more specific route first so :id does not capture "cache"
 	v1.GET("/instances/:id/cache/:key", app.GetCache)
 	v1.POST("/instances/:id/cache", app.SetCache)

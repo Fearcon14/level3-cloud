@@ -60,10 +60,10 @@ func (m *mockStore) DeleteInstance(ctx context.Context, id string) error {
 	return m.DeleteInstanceFn(ctx, id)
 }
 
-// newTestApp creates an Application with a mock store and a no-op logger.
+// newTestApp creates an Application with a mock store and a no-op logger. LogStore is nil.
 func newTestApp(store k8s.InstanceStore) *Application {
 	logger := slog.New(slog.NewTextHandler(&bytes.Buffer{}, nil))
-	return NewApplication(store, nil, logger)
+	return NewApplication(store, nil, nil, logger)
 }
 
 // newTestEchoWithAuth returns an Echo and the v1 group protected by JWTMiddleware.

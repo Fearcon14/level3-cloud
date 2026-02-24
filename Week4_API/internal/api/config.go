@@ -11,6 +11,9 @@ type Config struct {
 	APIListenAddr             string
 	RedisFailoverTemplatePath string
 	DefaultStorageClass       string
+	// DatabaseURL is the PostgreSQL connection string for user-centric logs (audit_logs, service_logs).
+	// If empty, log store is nil and audit/service log writes and GET /instances/:id/logs are skipped.
+	DatabaseURL string
 }
 
 // GetConfig loads config from environment with centralized defaults.
@@ -20,6 +23,7 @@ func GetConfig() *Config {
 	apiListenAddr := os.Getenv("API_LISTEN_ADDR")
 	templatePath := os.Getenv("REDIS_FAILOVER_TEMPLATE")
 	defaultStorageClass := os.Getenv("PAAS_DEFAULT_STORAGE_CLASS")
+	databaseURL := os.Getenv("DATABASE_URL")
 
 	if paasNamespace == "" {
 		paasNamespace = "default"
@@ -40,5 +44,6 @@ func GetConfig() *Config {
 		APIListenAddr:            apiListenAddr,
 		RedisFailoverTemplatePath: templatePath,
 		DefaultStorageClass:      defaultStorageClass,
+		DatabaseURL:              databaseURL,
 	}
 }

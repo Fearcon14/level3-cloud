@@ -1,15 +1,18 @@
 package api
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/cache"
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/k8s"
+	"github.com/Fearcon14/level3-cloud/Week4_API/internal/logstore"
 	"github.com/Fearcon14/level3-cloud/Week4_API/internal/models"
 	"github.com/golang-jwt/jwt/v5"
 	"github.com/labstack/echo/v5"
@@ -22,18 +25,48 @@ const MaxCacheKeyLength = 512
 type Application struct {
 	Store       k8s.InstanceStore
 	CacheClient cache.ClientInterface
+	LogStore    logstore.Store // nil if DATABASE_URL unset; audit/service log writes and ListLogs no-op or skip
 	Logger      *slog.Logger
+	// lastInstanceStatus is used to detect status changes for service log (key: instanceID, value: status).
+	lastInstanceStatus   map[string]string
+	lastInstanceStatusMu sync.RWMutex
 }
 
-func NewApplication(store k8s.InstanceStore, cacheClient cache.ClientInterface, logger *slog.Logger) *Application {
+func NewApplication(store k8s.InstanceStore, cacheClient cache.ClientInterface, logStore logstore.Store, logger *slog.Logger) *Application {
 	if cacheClient == nil {
 		cacheClient = cache.NewClient()
 	}
 	return &Application{
-		Store:       store,
-		CacheClient: cacheClient,
-		Logger:      logger,
+		Store:                store,
+		CacheClient:          cacheClient,
+		LogStore:             logStore,
+		Logger:               logger,
+		lastInstanceStatus:   make(map[string]string),
 	}
+}
+
+// writeAuditLog appends an audit log entry in the background. No-op if LogStore is nil. Errors are logged only.
+func (a *Application) writeAuditLog(ctx context.Context, tenantUser, instanceID, action string, details map[string]any) {
+	if a.LogStore == nil {
+		return
+	}
+	go func() {
+		if err := a.LogStore.AppendAuditLog(context.Background(), tenantUser, instanceID, action, details); err != nil {
+			a.Logger.Error("audit log write failed", "instanceId", instanceID, "action", action, "error", err)
+		}
+	}()
+}
+
+// writeServiceLog appends a service log entry in the background. No-op if LogStore is nil. Errors are logged only.
+func (a *Application) writeServiceLog(ctx context.Context, tenantUser, instanceID, eventType, message string, metadata map[string]any) {
+	if a.LogStore == nil {
+		return
+	}
+	go func() {
+		if err := a.LogStore.AppendServiceLog(context.Background(), tenantUser, instanceID, eventType, message, metadata); err != nil {
+			a.Logger.Error("service log write failed", "instanceId", instanceID, "eventType", eventType, "error", err)
+		}
+	}()
 }
 
 // namespaceForUser maps a user identifier (e.g. from X-User header) to a Kubernetes namespace.
@@ -81,6 +114,21 @@ func (a *Application) GetInstance(c *echo.Context) error {
 		a.Logger.Error("get instance failed", "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to get instance"})
 	}
+
+	// Service log: record status change (best-effort)
+	a.lastInstanceStatusMu.Lock()
+	key := user + "/" + id
+	prev := a.lastInstanceStatus[key]
+	if prev != instance.Status {
+		a.lastInstanceStatus[key] = instance.Status
+		a.lastInstanceStatusMu.Unlock()
+		if prev != "" {
+			a.writeServiceLog(ctx, user, id, "status_change", "Instance status changed to "+instance.Status, map[string]any{"previous": prev})
+		}
+	} else {
+		a.lastInstanceStatusMu.Unlock()
+	}
+
 	return c.JSON(http.StatusOK, instance)
 }
 
@@ -110,6 +158,7 @@ func (a *Application) CreateInstance(c *echo.Context) error {
 		a.Logger.Error("failed to create instance", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("failed to create instance: %v", err)})
 	}
+	a.writeAuditLog(ctx, user, instance.ID, "create", map[string]any{"name": req.Name, "capacity": req.Capacity})
 	return c.JSON(http.StatusCreated, instance)
 }
 
@@ -142,6 +191,20 @@ func (a *Application) PatchInstance(c *echo.Context) error {
 		a.Logger.Error("failed to update instance", "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to update instance"})
 	}
+	details := map[string]any{}
+	if req.Name != nil {
+		details["name"] = *req.Name
+	}
+	if req.Capacity != nil {
+		details["capacity"] = *req.Capacity
+	}
+	if req.RedisReplicas != nil {
+		details["redisReplicas"] = *req.RedisReplicas
+	}
+	if req.SentinelReplicas != nil {
+		details["sentinelReplicas"] = *req.SentinelReplicas
+	}
+	a.writeAuditLog(ctx, user, id, "update", details)
 	return c.JSON(http.StatusOK, updated)
 }
 
@@ -161,6 +224,7 @@ func (a *Application) DeleteInstance(c *echo.Context) error {
 		a.Logger.Error("failed to delete instance", "id", id, "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to delete instance"})
 	}
+	a.writeAuditLog(ctx, user, id, "delete", map[string]any{"instanceId": id})
 	return c.NoContent(http.StatusNoContent)
 }
 
@@ -211,6 +275,11 @@ func (a *Application) SetCache(c *echo.Context) error {
 		a.Logger.Error("cache set failed", "id", id, "key", req.Key, "error", err)
 		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "failed to store value in cache"})
 	}
+	details := map[string]any{"key": req.Key}
+	if req.TTLSeconds > 0 {
+		details["ttlSeconds"] = req.TTLSeconds
+	}
+	a.writeAuditLog(ctx, user, id, "cache_set", details)
 	return c.JSON(http.StatusOK, models.GetCacheResponse{Key: req.Key, Value: req.Value})
 }
 
@@ -249,7 +318,61 @@ func (a *Application) GetCache(c *echo.Context) error {
 		a.Logger.Error("cache get failed", "id", id, "key", key, "error", err)
 		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "failed to get value from cache"})
 	}
+	a.writeAuditLog(ctx, user, id, "cache_get", map[string]any{"key": key})
 	return c.JSON(http.StatusOK, models.GetCacheResponse{Key: key, Value: value})
+}
+
+// ListLogs returns audit and/or service logs for the instance. Instance must belong to the tenant (X-User).
+func (a *Application) ListLogs(c *echo.Context) error {
+	id := c.Param("id")
+	user := c.Request().Header.Get("X-User")
+	ns := namespaceForUser(user)
+	if ns == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing or empty X-User header"})
+	}
+	if a.LogStore == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "log store not configured"})
+	}
+	ctx := k8s.WithNamespace(c.Request().Context(), ns)
+
+	// Ensure instance exists and belongs to tenant
+	_, err := a.Store.GetInstance(ctx, id)
+	if err != nil {
+		if errors.Is(err, k8s.ErrNotFound) {
+			return c.JSON(http.StatusNotFound, map[string]string{"error": "instance not found"})
+		}
+		a.Logger.Error("get instance for logs failed", "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to get instance"})
+	}
+
+	opts := logstore.ListOpts{}
+	if t := c.QueryParam("type"); t != "" {
+		opts.Type = t
+	}
+	if sinceStr := c.QueryParam("since"); sinceStr != "" {
+		if t, err := time.Parse(time.RFC3339, sinceStr); err == nil {
+			opts.Since = t
+		}
+	}
+	if limitStr := c.QueryParam("limit"); limitStr != "" {
+		if n, err := parseInt(limitStr); err == nil && n > 0 {
+			opts.Limit = n
+		}
+	}
+
+	entries, err := a.LogStore.ListLogs(ctx, user, id, opts)
+	if err != nil {
+		a.Logger.Error("list logs failed", "id", id, "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to list logs"})
+	}
+	return c.JSON(http.StatusOK, entries)
+}
+
+// parseInt parses a decimal integer; returns 0 and non-nil error on failure.
+func parseInt(s string) (int, error) {
+	var n int
+	_, err := fmt.Sscanf(s, "%d", &n)
+	return n, err
 }
 
 // Login handles user authentication and issues a JWT

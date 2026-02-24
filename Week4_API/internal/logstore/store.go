@@ -12,13 +12,16 @@ type Store interface {
 	AppendAuditLog(ctx context.Context, tenantUser, instanceID, action string, details map[string]any) error
 	AppendServiceLog(ctx context.Context, tenantUser, instanceID, eventType, message string, metadata map[string]any) error
 	ListLogs(ctx context.Context, tenantUser, instanceID string, opts ListOpts) ([]LogEntry, error)
+	// ListLogsAll returns logs for the tenant across all instances, optionally filtered by InstanceID.
+	ListLogsAll(ctx context.Context, tenantUser string, opts ListOpts) ([]LogEntry, error)
 }
 
 // ListOpts filters and paginates log listing.
 type ListOpts struct {
-	Type  string    // "audit", "service", or "" for both
-	Since time.Time // optional; zero means no lower bound
-	Limit int       // max entries; 0 means default (e.g. 100)
+	Type       string    // "audit", "service", or "" for both
+	Since      time.Time // optional; zero means no lower bound
+	Limit      int       // max entries; 0 means default (e.g. 100)
+	InstanceID string    // optional; when set filter by instance (for ListLogsAll)
 }
 
 // LogEntry is a single audit or service log row returned by ListLogs.

@@ -12,6 +12,7 @@ func RegisterRoutes(e *echo.Echo, app *Application) {
 	v1 := e.Group("/api/v1")
 	v1.Use(JWTMiddleware)
 
+	v1.GET("/logs", app.ListLogsAll)
 	v1.GET("/instances", app.ListInstances)
 	v1.GET("/instances/:id", app.GetInstance)
 	v1.POST("/instances", app.CreateInstance)

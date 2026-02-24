@@ -42,64 +42,6 @@ const cacheSetLoading = ref(false)
 const cacheSetError = ref(null)
 const cacheSetSuccess = ref(false)
 
-// Logs (audit + service) state
-const logs = ref([])
-const logsLoading = ref(false)
-const logsError = ref(null)
-const logsNotConfigured = ref(false) // true when API returned 503 (no log store)
-const logTypeFilter = ref('all') // 'audit' | 'service' | 'all'
-const logLimit = ref(50)
-
-const fetchLogs = async () => {
-  if (!instance.value?.id) return
-  logsError.value = null
-  logsLoading.value = true
-  try {
-    const params = new URLSearchParams()
-    if (logTypeFilter.value && logTypeFilter.value !== 'all') params.set('type', logTypeFilter.value)
-    if (logLimit.value > 0) params.set('limit', String(logLimit.value))
-    const url = `/api/v1/instances/${instance.value.id}/logs${params.toString() ? '?' + params.toString() : ''}`
-    const response = await axios.get(url, { headers: authHeaders() })
-    logs.value = response.data ?? []
-    logsError.value = null
-    logsNotConfigured.value = false
-  } catch (err) {
-    const status = err.response?.status
-    const msg = err.response?.data?.error ?? err.message ?? 'Failed to load logs'
-    logs.value = []
-    // 503 = log store not configured (e.g. no DATABASE_URL); show neutral message, not error
-    if (status === 503) {
-      logsNotConfigured.value = true
-      logsError.value = 'Logs not configured for this environment.'
-    } else {
-      logsNotConfigured.value = false
-      logsError.value = msg
-    }
-  } finally {
-    logsLoading.value = false
-  }
-}
-
-function formatLogTime (ts) {
-  if (!ts) return '—'
-  try {
-    const d = new Date(ts)
-    return isNaN(d.getTime()) ? ts : d.toLocaleString()
-  } catch {
-    return ts
-  }
-}
-
-function formatLogDetails (details) {
-  if (details == null || (Array.isArray(details) && details.length === 0)) return ''
-  try {
-    const o = typeof details === 'string' ? JSON.parse(details) : details
-    return JSON.stringify(o)
-  } catch {
-    return String(details)
-  }
-}
-
 function cacheGetEndpoint () {
   const id = instance.value?.id ?? ':id'
   return `/api/v1/instances/${id}/cache/:key`
@@ -164,7 +106,6 @@ const fetchInstance = async () => {
     const response = await axios.get(`/api/v1/instances/${instanceId}`, { headers: authHeaders() })
     instance.value = response.data
     error.value = null
-    await fetchLogs()
   } catch (err) {
     console.error('API Error:', err)
     error.value = 'Failed to load instance details.'
@@ -399,61 +340,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <!-- Instance logs (audit + service) -->
-        <div class="mt-4 pt-3 border-top">
-          <h5 class="text-muted text-uppercase fs-6 fw-bold mb-3">Activity &amp; logs</h5>
-          <p class="text-secondary small mb-3">
-            Audit logs (your actions) and service logs (e.g. status changes) for this instance.
-          </p>
-          <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
-            <select v-model="logTypeFilter" class="form-select form-select-sm" style="width: auto" @change="fetchLogs">
-              <option value="all">All logs</option>
-              <option value="audit">Audit only</option>
-              <option value="service">Service only</option>
-            </select>
-            <input v-model.number="logLimit" type="number" class="form-control form-control-sm" style="width: 5rem" min="1" max="500" placeholder="Limit" @keydown.enter="fetchLogs">
-            <span class="text-muted small">entries</span>
-            <button type="button" class="btn btn-outline-secondary btn-sm" :disabled="logsLoading" @click="fetchLogs">
-              <i class="bi bi-arrow-clockwise"></i> {{ logsLoading ? 'Loading…' : 'Refresh' }}
-            </button>
-          </div>
-          <p v-if="logsError" class="small mb-2" :class="logsNotConfigured ? 'text-muted' : 'text-danger'">{{ logsError }}</p>
-          <div v-else-if="logsLoading && logs.length === 0" class="text-center py-4 text-muted small">
-            Loading logs…
-          </div>
-          <div v-else-if="logs.length === 0" class="text-muted small py-3">
-            No log entries yet.
-          </div>
-          <div v-else class="table-responsive">
-            <table class="table table-sm table-hover mb-0">
-              <thead class="table-light">
-                <tr>
-                  <th class="text-nowrap">Time</th>
-                  <th class="text-nowrap">Type</th>
-                  <th class="text-nowrap">Action</th>
-                  <th>Message / details</th>
-                </tr>
-              </thead>
-              <tbody>
-                <tr v-for="entry in logs" :key="entry.id">
-                  <td class="text-nowrap small">{{ formatLogTime(entry.timestamp) }}</td>
-                  <td>
-                    <span class="badge" :class="entry.type === 'audit' ? 'bg-primary' : 'bg-secondary'">
-                      {{ entry.type }}
-                    </span>
-                  </td>
-                  <td class="font-monospace small">{{ entry.action }}</td>
-                  <td class="small">
-                    <span v-if="entry.message">{{ entry.message }}</span>
-                    <code v-else-if="formatLogDetails(entry.details)" class="d-block mt-1 p-1 bg-light rounded small text-break">{{ formatLogDetails(entry.details) }}</code>
-                    <span v-else-if="formatLogDetails(entry.metadata)" class="text-muted">{{ formatLogDetails(entry.metadata) }}</span>
-                    <span v-else class="text-muted">—</span>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-        </div>
       </div>
     </div>
 

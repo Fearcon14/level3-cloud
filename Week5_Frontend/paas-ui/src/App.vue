@@ -18,6 +18,7 @@ const handleLogout = () => {
         <span class="navbar-brand">PaaS Dashboard</span>
         <div class="d-flex align-items-center">
           <span class="me-3">Hello, <strong>{{ userStore.username }}</strong></span>
+          <router-link to="/logs" class="btn btn-outline-secondary btn-sm me-2">Activity &amp; Logs</router-link>
           <a
             href="https://grafana.kevin-sinn.runs.onstackit.cloud/"
             target="_blank"

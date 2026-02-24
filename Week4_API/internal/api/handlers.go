@@ -388,6 +388,58 @@ func (a *Application) ListLogs(c *echo.Context) error {
 	return c.JSON(http.StatusOK, out)
 }
 
+// ListLogsAll returns audit and/or service logs for the tenant (all instances), optionally filtered by instanceId.
+func (a *Application) ListLogsAll(c *echo.Context) error {
+	user := c.Request().Header.Get("X-User")
+	ns := namespaceForUser(user)
+	if ns == "" {
+		return c.JSON(http.StatusBadRequest, map[string]string{"error": "missing or empty X-User header"})
+	}
+	if a.LogStore == nil {
+		return c.JSON(http.StatusServiceUnavailable, map[string]string{"error": "log store not configured"})
+	}
+	ctx := k8s.WithNamespace(c.Request().Context(), ns)
+
+	opts := logstore.ListOpts{}
+	if t := c.QueryParam("type"); t != "" {
+		opts.Type = t
+	}
+	if sinceStr := c.QueryParam("since"); sinceStr != "" {
+		if t, err := time.Parse(time.RFC3339, sinceStr); err == nil {
+			opts.Since = t
+		}
+	}
+	if limitStr := c.QueryParam("limit"); limitStr != "" {
+		if n, err := parseInt(limitStr); err == nil && n > 0 {
+			opts.Limit = n
+		}
+	}
+	if id := c.QueryParam("instanceId"); id != "" {
+		opts.InstanceID = id
+	}
+
+	entries, err := a.LogStore.ListLogsAll(ctx, user, opts)
+	if err != nil {
+		a.Logger.Error("list logs all failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to list logs"})
+	}
+	out := make([]models.LogEntry, len(entries))
+	for i := range entries {
+		out[i] = models.LogEntry{
+			ID:         entries[i].ID,
+			Type:       entries[i].Type,
+			Timestamp:  entries[i].Timestamp,
+			Action:     entries[i].Action,
+			Message:    entries[i].Message,
+			Details:    entries[i].Details,
+			Metadata:   entries[i].Metadata,
+			TenantUser: entries[i].TenantUser,
+			InstanceID: entries[i].InstanceID,
+		}
+	}
+	return c.JSON(http.StatusOK, out)
+}
+
 // parseInt parses a decimal integer; returns 0 and non-nil error on failure.
 func parseInt(s string) (int, error) {
 	var n int

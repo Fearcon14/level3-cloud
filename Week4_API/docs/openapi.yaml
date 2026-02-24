@@ -204,6 +204,71 @@ paths:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
 
+  /api/v1/logs:
+    get:
+      summary: List audit and service logs for the tenant (all instances)
+      operationId: listLogsAll
+      description: |
+        Returns audit and service logs for the authenticated tenant across all instances,
+        optionally filtered by instance ID. Requires the log store to be configured (DATABASE_URL).
+      tags:
+        - Logs
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: instanceId
+          in: query
+          required: false
+          description: Filter logs to this instance ID only. Omit for all instances.
+          schema:
+            type: string
+        - name: type
+          in: query
+          required: false
+          description: Filter by log type. Omit or use "all" for both audit and service logs.
+          schema:
+            type: string
+            enum:
+              - audit
+              - service
+              - all
+        - name: since
+          in: query
+          required: false
+          description: Return only logs at or after this time (RFC3339).
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          required: false
+          description: Maximum number of entries to return (default 100).
+          schema:
+            type: integer
+            minimum: 1
+            default: 100
+      responses:
+        '200':
+          description: List of log entries, ordered by time descending.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LogEntry'
+        '503':
+          description: Log store not configured
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '500':
+          description: Failed to list logs
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
   /api/v1/instances/{id}/logs:
     get:
       summary: List audit and service logs for an instance

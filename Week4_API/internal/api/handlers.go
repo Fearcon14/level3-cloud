@@ -158,7 +158,12 @@ func (a *Application) CreateInstance(c *echo.Context) error {
 		a.Logger.Error("failed to create instance", "error", err)
 		return c.JSON(http.StatusInternalServerError, map[string]string{"error": fmt.Sprintf("failed to create instance: %v", err)})
 	}
-	a.writeAuditLog(ctx, user, instance.ID, "create", map[string]any{"name": req.Name, "capacity": req.Capacity})
+	a.writeAuditLog(ctx, user, instance.ID, "create", map[string]any{
+		"name":             req.Name,
+		"capacity":         req.Capacity,
+		"redisReplicas":    instance.RedisReplicas,
+		"sentinelReplicas": instance.SentinelReplicas,
+	})
 	return c.JSON(http.StatusCreated, instance)
 }
 

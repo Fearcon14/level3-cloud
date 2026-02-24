@@ -9,27 +9,27 @@ const cacheValue = 'Success';
 const INSTANCE_READY_TIMEOUT_MS = 100_000;
 const POLL_INTERVAL_MS = 5_000;
 
-// Reload the page until the instance card shows "running" or timeout (page doesn't auto-refresh)
-async function waitForInstanceRunning(page, name, timeoutMs) {
-  const deadline = Date.now() + timeoutMs;
-  const waitAfterReloadMs = 15_000; // give the page time to fetch and render after each reload
-  while (Date.now() < deadline) {
-    await page.reload();
-    await page.waitForLoadState('load');
-    const card = page.locator('.card').filter({ has: page.getByText(name, { exact: true }) });
-    try {
-      await expect(card).toBeVisible({ timeout: waitAfterReloadMs });
-      await expect(card.getByText(/running/i)).toBeVisible({ timeout: 5_000 });
-      return;
-    } catch {
-      // card not there yet or still not running, wait and reload again
-    }
-    await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
-  }
-  await page.reload();
-  const card = page.locator('.card').filter({ has: page.getByText(name, { exact: true }) });
-  await expect(card.getByText(/running/i)).toBeVisible();
-}
+// // Reload the page until the instance card shows "running" or timeout (page doesn't auto-refresh)
+// async function waitForInstanceRunning(page, name, timeoutMs) {
+//   const deadline = Date.now() + timeoutMs;
+//   const waitAfterReloadMs = 15_000; // give the page time to fetch and render after each reload
+//   while (Date.now() < deadline) {
+//     await page.reload();
+//     await page.waitForLoadState('load');
+//     const card = page.locator('.card').filter({ has: page.getByText(name, { exact: true }) });
+//     try {
+//       await expect(card).toBeVisible({ timeout: waitAfterReloadMs });
+//       await expect(card.getByText(/running/i)).toBeVisible({ timeout: 5_000 });
+//       return;
+//     } catch {
+//       // card not there yet or still not running, wait and reload again
+//     }
+//     await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+//   }
+//   await page.reload();
+//   const card = page.locator('.card').filter({ has: page.getByText(name, { exact: true }) });
+//   await expect(card.getByText(/running/i)).toBeVisible();
+// }
 
 test.describe.serial('paas', () => {
   test('has title', async ({ page }) => {

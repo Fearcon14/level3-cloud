@@ -437,9 +437,8 @@ func (s *PostgresStore) queryMergedLogsAll(ctx context.Context, tenantUser strin
 	for rows.Next() {
 		var id, instID, logType, action string
 		var createdAt time.Time
-		var message sql.NullString
-		var detailsStr, metadataStr string
-		if err := rows.Scan(&id, &instID, &createdAt, &logType, &action, &message, &detailsStr, &metadataStr); err != nil {
+		var message, detailsNull, metadataNull sql.NullString
+		if err := rows.Scan(&id, &instID, &createdAt, &logType, &action, &message, &detailsNull, &metadataNull); err != nil {
 			return nil, err
 		}
 		e := LogEntry{
@@ -451,10 +450,11 @@ func (s *PostgresStore) queryMergedLogsAll(ctx context.Context, tenantUser strin
 			TenantUser: tenantUser,
 			InstanceID: instID,
 		}
-		if logType == "audit" {
-			e.Details = json.RawMessage(detailsStr)
-		} else {
-			e.Metadata = json.RawMessage(metadataStr)
+		if logType == "audit" && detailsNull.Valid {
+			e.Details = json.RawMessage(detailsNull.String)
+		}
+		if logType == "service" && metadataNull.Valid {
+			e.Metadata = json.RawMessage(metadataNull.String)
 		}
 		out = append(out, e)
 	}

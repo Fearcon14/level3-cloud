@@ -15,7 +15,7 @@ const handleLogout = () => {
   <header v-if="userStore.username">
     <nav class="navbar navbar-expand-lg navbar-light bg-light mb-4">
       <div class="container-fluid">
-        <span class="navbar-brand">PaaS Dashboard</span>
+        <router-link to="/" class="navbar-brand text-decoration-none">PaaS Dashboard</router-link>
         <div class="d-flex align-items-center">
           <span class="me-3">Hello, <strong>{{ userStore.username }}</strong></span>
           <router-link to="/logs" class="btn btn-outline-secondary btn-sm me-2">Activity &amp; Logs</router-link>

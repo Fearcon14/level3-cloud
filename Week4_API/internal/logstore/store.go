@@ -14,6 +14,8 @@ type Store interface {
 	ListLogs(ctx context.Context, tenantUser, instanceID string, opts ListOpts) ([]LogEntry, error)
 	// ListLogsAll returns logs for the tenant across all instances, optionally filtered by InstanceID.
 	ListLogsAll(ctx context.Context, tenantUser string, opts ListOpts) ([]LogEntry, error)
+	// CountLogs returns the total number of log entries matching the filters (Type, Since, InstanceID). Used for pagination.
+	CountLogs(ctx context.Context, tenantUser string, opts ListOpts) (int, error)
 }
 
 // ListOpts filters and paginates log listing.
@@ -21,6 +23,7 @@ type ListOpts struct {
 	Type       string    // "audit", "service", or "" for both
 	Since      time.Time // optional; zero means no lower bound
 	Limit      int       // max entries; 0 means default (e.g. 100)
+	Offset     int       // skip this many entries (for pagination)
 	InstanceID string    // optional; when set filter by instance (for ListLogsAll)
 }
 

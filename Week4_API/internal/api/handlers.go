@@ -417,6 +417,18 @@ func (a *Application) ListLogsAll(c *echo.Context) error {
 	if id := c.QueryParam("instanceId"); id != "" {
 		opts.InstanceID = id
 	}
+	if offsetStr := c.QueryParam("offset"); offsetStr != "" {
+		if n, err := parseInt(offsetStr); err == nil && n >= 0 {
+			opts.Offset = n
+		}
+	}
+
+	total, err := a.LogStore.CountLogs(ctx, user, opts)
+	if err != nil {
+		a.Logger.Error("count logs failed", "error", err)
+		return c.JSON(http.StatusInternalServerError, map[string]string{"error": "failed to count logs"})
+	}
+	c.Response().Header().Set("X-Total-Count", fmt.Sprintf("%d", total))
 
 	entries, err := a.LogStore.ListLogsAll(ctx, user, opts)
 	if err != nil {

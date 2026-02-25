@@ -242,14 +242,27 @@ paths:
         - name: limit
           in: query
           required: false
-          description: Maximum number of entries to return (default 100).
+          description: Page size (max entries per page, default 100).
           schema:
             type: integer
             minimum: 1
             default: 100
+        - name: offset
+          in: query
+          required: false
+          description: Number of entries to skip (for pagination). Use with limit for page N as offset=(N-1)*limit.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
       responses:
         '200':
-          description: List of log entries, ordered by time descending.
+          description: List of log entries, ordered by time descending. Response header X-Total-Count gives the total number of entries matching the filters (before limit/offset).
+          headers:
+            X-Total-Count:
+              description: Total number of log entries matching the filters.
+              schema:
+                type: integer
           content:
             application/json:
               schema:
